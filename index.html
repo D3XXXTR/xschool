@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Школа Икс — подготовка к ОГЭ/ЕГЭ и академия выходного дня</title>
+  <meta name="description" content="Школа Икс — подготовка к ОГЭ/ЕГЭ, IT-навыки и академия выходного дня для детей 9–17 лет. Запишитесь на бесплатное пробное занятие." />
+  <style>
+    :root {
+      --bg: #120b22;
+      --surface: rgba(255, 255, 255, 0.92);
+      --surface-soft: rgba(255, 255, 255, 0.08);
+      --text: #171321;
+      --muted: #6c6578;
+      --line: rgba(255, 255, 255, 0.16);
+      --accent: #9b5cff;
+      --accent-dark: #6d4aff;
+      --dark: #171321;
+      --shadow: 0 28px 70px rgba(19, 9, 38, 0.22);
+      --shadow-soft: 0 16px 44px rgba(19, 9, 38, 0.16);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: Arial, sans-serif;
+      background:
+        radial-gradient(circle at 18% 8%, rgba(155, 92, 255, 0.55), transparent 28%),
+        radial-gradient(circle at 88% 16%, rgba(199, 125, 255, 0.35), transparent 30%),
+        radial-gradient(circle at 50% 100%, rgba(80, 44, 180, 0.45), transparent 38%),
+        linear-gradient(180deg, #140b28 0%, #10091e 45%, #160d2a 100%);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    a { color: inherit; text-decoration: none; }
+    .container { width: min(1160px, calc(100% - 40px)); margin: 0 auto; }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 26px 0 56px;
+      background: transparent;
+    }
+    /* Фирменный фон "X" */
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(45deg, rgba(255,255,255,0.045) 1px, transparent 1px),
+        linear-gradient(-45deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+      background-size: 64px 64px;
+      mask-image: linear-gradient(180deg, #000 0%, transparent 88%);
+      pointer-events: none;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: 22px;
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 34px;
+      pointer-events: none;
+    }
+    .header, .hero-grid, .direction-choice { position: relative; z-index: 2; }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 82px;
+    }
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logo-icon {
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+      background: #ffffff;
+      color: #120b22;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 900;
+      box-shadow: 0 0 30px rgba(155, 92, 255, 0.38);
+    }
+    .logo-title { font-size: 20px; font-weight: 900; line-height: 1; color: #ffffff; }
+    .logo-subtitle { color: rgba(255,255,255,0.62); font-size: 12px; margin-top: 4px; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 56px;
+      padding: 0 28px;
+      border-radius: 16px;
+      border: 0;
+      cursor: pointer;
+      font-weight: 800;
+      font-size: 16px;
+      transition: 0.18s ease;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 18px 38px rgba(109, 74, 255, 0.22);
+    }
+    .btn-primary:hover { background: var(--accent-dark); transform: translateY(-2px); }
+    .btn-dark {
+      background: var(--dark);
+      color: #ffffff;
+      box-shadow: var(--shadow-soft);
+    }
+    .btn-dark:hover { background: var(--accent); transform: translateY(-2px); }
+    .btn-outline {
+      background: rgba(255,255,255,0.08);
+      color: #ffffff;
+      border: 1px solid rgba(255,255,255,0.18);
+    }
+    .btn-outline:hover { border-color: rgba(255,255,255,0.45); transform: translateY(-2px); }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 62px;
+      align-items: center;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 10px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.88);
+      font-weight: 800;
+      font-size: 14px;
+      margin-bottom: 28px;
+      box-shadow: 0 0 34px rgba(155, 92, 255, 0.16);
+    }
+    h1 {
+      font-size: clamp(42px, 6vw, 76px);
+      line-height: 0.96;
+      letter-spacing: -0.055em;
+      margin-bottom: 28px;
+      font-weight: 900;
+      color: #ffffff;
+    }
+    .accent { color: #c9a7ff; }
+    .hero-text {
+      max-width: 640px;
+      color: rgba(255,255,255,0.72);
+      font-size: 20px;
+      margin-bottom: 36px;
+    }
+    .hero-buttons { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 34px; }
+    .trust-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      max-width: 610px;
+    }
+    .trust-item {
+      padding: 16px 14px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.14);
+      text-align: center;
+      color: rgba(255,255,255,0.88);
+      font-weight: 800;
+      font-size: 14px;
+      box-shadow: 0 0 28px rgba(155, 92, 255, 0.10);
+    }
+
+    .card {
+      border-radius: 30px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.92);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+    .diagnostic-card { padding: 32px; }
+    .inner-card {
+      border-radius: 24px;
+      background: #f3efff;
+      border: 1px solid #e4d8ff;
+      padding: 28px;
+      margin-bottom: 22px;
+    }
+    .small-title {
+      color: var(--accent);
+      font-weight: 900;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 12px;
+    }
+    .inner-card h3, .form-card h3 {
+      font-size: 28px;
+      line-height: 1.12;
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+    .muted { color: var(--muted); }
+    .check-list { display: grid; gap: 12px; }
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      border-radius: 18px;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      color: var(--text);
+      font-weight: 700;
+    }
+    .check {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #ffffff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      flex-shrink: 0;
+      font-size: 13px;
+    }
+
+    section { padding: 92px 0; }
+    .section-soft { background: rgba(255,255,255,0.04); }
+    .section-white { background: rgba(255,255,255,0.92); }
+    .section-accent { background: rgba(255,255,255,0.08); }
+    .section-head { max-width: 760px; margin: 0 auto 50px; text-align: center; }
+    h2 {
+      font-size: clamp(32px, 4vw, 52px);
+      line-height: 1.04;
+      letter-spacing: -0.04em;
+      font-weight: 900;
+      margin-bottom: 20px;
+      color: var(--text);
+    }
+    .section-head p, .lead { color: var(--muted); font-size: 18px; }
+    .section-soft h2, .section-accent h2 { color: #ffffff; }
+    .section-soft .lead, .section-accent .lead { color: rgba(255,255,255,0.72); }
+    .section-soft .section-head p, .section-accent .section-head p { color: rgba(255,255,255,0.72); }
+
+    .direction-choice {
+      padding: 0 0 86px;
+      margin-top: -18px;
+    }
+    .direction-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 22px;
+    }
+    .direction-head h2 {
+      color: #ffffff;
+      font-size: clamp(28px, 4vw, 46px);
+      margin: 0;
+    }
+    .direction-head p {
+      color: rgba(255,255,255,0.68);
+      max-width: 390px;
+      font-size: 17px;
+    }
+    .direction-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    .direction-card {
+      min-height: 230px;
+      border-radius: 28px;
+      padding: 24px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.14);
+      color: #ffffff;
+      box-shadow: 0 0 34px rgba(155, 92, 255, 0.12);
+      backdrop-filter: blur(18px);
+      transition: 0.18s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .direction-card:hover {
+      transform: translateY(-5px);
+      border-color: rgba(201, 167, 255, 0.55);
+      box-shadow: 0 0 48px rgba(155, 92, 255, 0.26);
+    }
+    .direction-number {
+      color: #c9a7ff;
+      font-weight: 900;
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      margin-bottom: 18px;
+    }
+    .direction-card h3 {
+      font-size: 24px;
+      line-height: 1.05;
+      margin-bottom: 14px;
+      color: #ffffff;
+    }
+    .direction-card p {
+      color: rgba(255,255,255,0.66);
+      font-size: 15px;
+    }
+    .direction-link {
+      margin-top: 22px;
+      color: #ffffff;
+      font-weight: 900;
+    }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+    .pain-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .pain-card, .benefit-card, .review-card {
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      background: #ffffff;
+      padding: 24px;
+      box-shadow: var(--shadow-soft);
+      font-weight: 750;
+    }
+    .pain-card { color: var(--text); }
+    .pain-card strong { display: block; margin-bottom: 8px; }
+
+    .program-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+    .program-card {
+      position: relative;
+      overflow: hidden;
+      border-radius: 30px;
+      border: 1px solid var(--line);
+      background: #ffffff;
+      padding: 36px;
+      transition: 0.18s ease;
+      box-shadow: var(--shadow-soft);
+    }
+    .program-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
+    .icon-box {
+      width: 60px;
+      height: 60px;
+      border-radius: 20px;
+      background: var(--dark);
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow-soft);
+    }
+    .program-card h3 { font-size: 31px; line-height: 1.1; margin-bottom: 14px; color: var(--text); }
+    .program-list {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin: 26px 0 30px;
+      color: #312a3f;
+      font-weight: 700;
+    }
+    .program-list div, .benefit-card { display: flex; gap: 10px; align-items: flex-start; }
+
+    .benefits-layout { display: grid; grid-template-columns: 0.9fr 2fr; gap: 24px; align-items: stretch; }
+    .benefit-main {
+      border-radius: 30px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.09);
+      color: #ffffff;
+      padding: 36px;
+      box-shadow: 0 0 42px rgba(155, 92, 255, 0.12);
+      backdrop-filter: blur(16px);
+    }
+    .benefit-main .big-icon { font-size: 40px; margin-bottom: 18px; }
+    .benefit-main h2 { font-size: 34px; color: #ffffff; }
+    .benefit-main .muted { color: rgba(255,255,255,0.72); }
+    .benefit-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .benefit-card { color: var(--text); background: rgba(255,255,255,0.92); }
+
+    .cases-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+    .case-card {
+      border-radius: 26px;
+      border: 1px solid var(--line);
+      background: #ffffff;
+      padding: 26px;
+      box-shadow: var(--shadow-soft);
+    }
+    .case-score {
+      font-size: 44px;
+      line-height: 1;
+      font-weight: 900;
+      color: var(--accent);
+      margin-bottom: 12px;
+      letter-spacing: -0.04em;
+    }
+    .case-card h3 {
+      font-size: 20px;
+      line-height: 1.15;
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+    .case-card p { color: var(--muted); }
+    .reviews-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .stars { color: var(--accent); letter-spacing: 2px; margin-bottom: 18px; }
+    .review-card p { color: var(--muted); margin-bottom: 18px; }
+    .review-card strong { color: var(--text); }
+
+    .cta-box {
+      border-radius: 24px;
+      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(255,255,255,0.10);
+      padding: 22px;
+      color: #ffffff;
+      font-weight: 850;
+      box-shadow: 0 0 34px rgba(155, 92, 255, 0.12);
+    }
+    .form-card { padding: 36px; }
+    form { display: grid; gap: 14px; margin-top: 24px; }
+    input, select {
+      width: 100%;
+      height: 58px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: #ffffff;
+      color: var(--text);
+      padding: 0 18px;
+      font-size: 15px;
+      outline: none;
+      font-family: Arial, sans-serif;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(109, 74, 255, 0.10);
+    }
+    .policy { color: #8d859b; font-size: 12px; text-align: center; }
+
+    footer {
+      border-top: 1px solid rgba(255,255,255,0.12);
+      padding: 34px 0;
+      color: rgba(255,255,255,0.62);
+      background: rgba(255,255,255,0.04);
+    }
+    .footer-content { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+
+    @media (max-width: 920px) {
+      .hero-grid, .two-col, .benefits-layout, .program-grid, .direction-grid { grid-template-columns: 1fr; }
+      .header { margin-bottom: 55px; }
+      .desktop-btn { display: none; }
+      .reviews-grid, .cases-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .container { width: min(100% - 28px, 1180px); }
+      .hero { padding-bottom: 64px; }
+      .hero-buttons, .footer-content { flex-direction: column; align-items: stretch; }
+      .btn { width: 100%; }
+      .trust-grid, .pain-grid, .program-list, .benefit-grid { grid-template-columns: 1fr; }
+      section { padding: 64px 0; }
+      .diagnostic-card, .program-card, .form-card, .benefit-main { padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="container">
+      <div class="header">
+        <a href="#" class="logo">
+          <div class="logo-icon">X</div>
+          <div>
+            <div class="logo-title">Школа Икс</div>
+            <div class="logo-subtitle">образовательный центр</div>
+          </div>
+        </a>
+        <a class="btn btn-dark desktop-btn" href="#form">Записаться бесплатно</a>
+      </div>
+
+      <div class="hero-grid">
+        <div>
+          <div class="badge">Бесплатное пробное занятие для новых учеников</div>
+          <h1>Сильная школа для детей, которым нужен <span class="accent">реальный результат</span></h1>
+          <p class="hero-text">Подготовка к ОГЭ/ЕГЭ, IT-навыки и академия выходного дня в современной образовательной среде с вниманием к каждому ученику.</p>
+          <div class="hero-buttons">
+            <a class="btn btn-primary" href="#form">Записаться на бесплатное занятие</a>
+            <a class="btn btn-outline" href="#programs">Посмотреть направления</a>
+          </div>
+          <div class="trust-grid">
+            <div class="trust-item">Группы до 10 человек</div>
+            <div class="trust-item">Более 10 лет опыта</div>
+            <div class="trust-item">ОГЭ/ЕГЭ + IT</div>
+          </div>
+        </div>
+
+        <div class="card diagnostic-card">
+          <div class="inner-card">
+            <p class="small-title">Диагностика</p>
+            <h3>Поймем уровень ребенка и покажем план роста</h3>
+            <p class="muted">После пробного занятия родитель получает понятную картину: что подтянуть, как готовиться и какое направление подойдет ребенку.</p>
+          </div>
+          <div class="check-list">
+            <div class="check-row"><span class="check">✓</span> Диагностика знаний</div>
+            <div class="check-row"><span class="check">✓</span> Знакомство с преподавателем</div>
+            <div class="check-row"><span class="check">✓</span> Подбор формата обучения</div>
+            <div class="check-row"><span class="check">✓</span> Рекомендации по подготовке</div>
+          </div>
+          <br />
+          <a class="btn btn-dark" style="width:100%;" href="#form">Оставить заявку</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section class="direction-choice" id="programs">
+    <div class="container">
+      <div class="direction-head">
+        <h2>Выберите направление</h2>
+        <p>Четыре понятных маршрута: экзамены, оценки, начальная школа и IT-академия для детей 8+.</p>
+      </div>
+      <div class="direction-grid">
+        <a class="direction-card" href="#form">
+          <div>
+            <div class="direction-number">01 / ЭКЗАМЕНЫ</div>
+            <h3>ОГЭ / ЕГЭ</h3>
+            <p>Системная подготовка к экзаменам по школьным предметам.</p>
+          </div>
+          <div class="direction-link">Записаться →</div>
+        </a>
+        <a class="direction-card" href="#form">
+          <div>
+            <div class="direction-number">02 / ОЦЕНКИ</div>
+            <h3>Повышение успеваемости</h3>
+            <p>Закрываем пробелы, подтягиваем знания и возвращаем уверенность.</p>
+          </div>
+          <div class="direction-link">Записаться →</div>
+        </a>
+        <a class="direction-card" href="#form">
+          <div>
+            <div class="direction-number">03 / БАЗА</div>
+            <h3>Начальная школа 1–4 класс</h3>
+            <p>Готовим сильную базу, чтобы ребенку было легко учиться дальше.</p>
+          </div>
+          <div class="direction-link">Записаться →</div>
+        </a>
+        <a class="direction-card" href="#form">
+          <div>
+            <div class="direction-number">04 / IT 8+</div>
+            <h3>Академия выходного дня</h3>
+            <p>Курсы программирования, игры, проекты и современные IT-навыки.</p>
+          </div>
+          <div class="direction-link">Записаться →</div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-soft">
+    <div class="container two-col">
+      <div>
+        <p class="small-title">Понимаем родителей</p>
+        <h2>Когда учеба превращается в стресс — ребенку нужен другой подход</h2>
+        <p class="lead">Мы не просто даем уроки. Мы помогаем ребенку почувствовать уверенность, увидеть цель и начать двигаться к результату.</p>
+      </div>
+      <div class="pain-grid">
+        <div class="pain-card"><strong>Нет мотивации</strong> Ребенок не хочет учиться и не понимает, зачем ему это нужно.</div>
+        <div class="pain-card"><strong>Пробелы в знаниях</strong> Школьная программа становится сложной, а оценки падают.</div>
+        <div class="pain-card"><strong>Нет цели</strong> Ребенок проводит много времени в телефоне и не видит будущего направления.</div>
+        <div class="pain-card"><strong>Страх экзаменов</strong> ОГЭ/ЕГЭ кажутся чем-то большим и непонятным.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-white">
+    <div class="container">
+      <div class="section-head">
+        <p class="small-title">Направления</p>
+        <h2>Ключевые программы Школы Икс</h2>
+        <p>Сильная база + экзамены + современные навыки</p>
+      </div>
+
+      <div class="program-grid">
+        <div class="program-card">
+          <div class="icon-box">01</div>
+          <h3>ОГЭ / ЕГЭ</h3>
+          <p class="muted">Системно готовим к экзаменам, разбираем пробелы и учим решать задания без паники.</p>
+          <div class="program-list">
+            <div><span class="check">✓</span> Математика</div>
+            <div><span class="check">✓</span> Русский язык</div>
+            <div><span class="check">✓</span> Английский</div>
+            <div><span class="check">✓</span> История / общество</div>
+          </div>
+          <a class="btn btn-primary" href="#form">Записаться</a>
+        </div>
+
+        <div class="program-card">
+          <div class="icon-box">02</div>
+          <h3>Повышение успеваемости</h3>
+          <p class="muted">Подтягиваем оценки, объясняем школьные темы простым языком и формируем привычку учиться.</p>
+          <div class="program-list">
+            <div><span class="check">✓</span> Домашние задания</div>
+            <div><span class="check">✓</span> Контрольные</div>
+            <div><span class="check">✓</span> Пробелы в знаниях</div>
+            <div><span class="check">✓</span> Уверенность</div>
+          </div>
+          <a class="btn btn-primary" href="#form">Записаться</a>
+        </div>
+
+        <div class="program-card">
+          <div class="icon-box">03</div>
+          <h3>Начальная школа 1–4 класс</h3>
+          <p class="muted">Формируем базу для поступления и дальнейшего обучения в системе Школы Икс.</p>
+          <div class="program-list">
+            <div><span class="check">✓</span> Чтение и письмо</div>
+            <div><span class="check">✓</span> Математика</div>
+            <div><span class="check">✓</span> Логика</div>
+            <div><span class="check">✓</span> Дисциплина</div>
+          </div>
+          <a class="btn btn-primary" href="#form">Записаться</a>
+        </div>
+
+        <div class="program-card">
+          <div class="icon-box">04</div>
+          <h3>Академия выходного дня 8+</h3>
+          <p class="muted">Курсы программирования и развития мышления через практику, игры и проекты.</p>
+          <div class="program-list">
+            <div><span class="check">✓</span> Программирование</div>
+            <div><span class="check">✓</span> Игры</div>
+            <div><span class="check">✓</span> Проекты</div>
+            <div><span class="check">✓</span> IT-навыки</div>
+          </div>
+          <a class="btn btn-primary" href="#form">Записаться</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-accent">
+    <div class="container benefits-layout">
+      <div class="benefit-main">
+        <div class="big-icon">X</div>
+        <h2>Почему родители выбирают нас</h2>
+        <p class="muted">Здесь ребенок не теряется в толпе. Мы видим каждого ученика и ведем его к понятному результату.</p>
+      </div>
+      <div class="benefit-grid">
+        <div class="benefit-card"><span class="check">✓</span> Малые группы до 10 учеников</div>
+        <div class="benefit-card"><span class="check">✓</span> Индивидуальный подход к каждому ребенку</div>
+        <div class="benefit-card"><span class="check">✓</span> Более 10 лет опыта в образовании</div>
+        <div class="benefit-card"><span class="check">✓</span> Понятное объяснение без скучных лекций</div>
+        <div class="benefit-card"><span class="check">✓</span> Реальные результаты: оценки, экзамены, уверенность</div>
+        <div class="benefit-card"><span class="check">✓</span> Уютная атмосфера и современная лаунж-зона</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-white">
+    <div class="container">
+      <div class="section-head">
+        <p class="small-title">Кейсы учеников</p>
+        <h2>Результаты, которые родители видят в цифрах</h2>
+        <p>Показываем не обещания, а понятный рост: баллы, оценки и уверенность ребенка.</p>
+      </div>
+
+      <div class="cases-grid">
+        <div class="case-card">
+          <div class="case-score">82</div>
+          <h3>ЕГЭ по русскому языку</h3>
+          <p>Стартовый уровень — 58 баллов. За 6 месяцев ученик вышел на уверенный результат.</p>
+        </div>
+        <div class="case-card">
+          <div class="case-score">74</div>
+          <h3>ЕГЭ профильная математика</h3>
+          <p>Разобрали пробелы по алгебре и геометрии, выстроили систему подготовки.</p>
+        </div>
+        <div class="case-card">
+          <div class="case-score">5</div>
+          <h3>ОГЭ по информатике</h3>
+          <p>Ученик пришел без уверенности в задачах, на экзамене получил оценку «5».</p>
+        </div>
+        <div class="case-card">
+          <div class="case-score">4→5</div>
+          <h3>Повышение успеваемости</h3>
+          <p>За четверть подтянули математику и убрали страх перед контрольными.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-soft">
+    <div class="container">
+      <div class="section-head">
+        <p class="small-title">Отзывы и результаты</p>
+        <h2>Родители видят изменения уже после первых занятий</h2>
+      </div>
+      <div class="reviews-grid">
+        <div class="review-card">
+          <div class="stars">★★★★★</div>
+          <p>“Сын стал спокойнее относиться к математике и начал сам делать задания.”</p>
+          <strong>Родитель ученика</strong>
+        </div>
+        <div class="review-card">
+          <div class="stars">★★★★★</div>
+          <p>“После диагностики стало понятно, где пробелы и как готовиться к ОГЭ.”</p>
+          <strong>Родитель ученика</strong>
+        </div>
+        <div class="review-card">
+          <div class="stars">★★★★★</div>
+          <p>“Ребенку понравилась атмосфера: не школа в обычном смысле, а место, куда хочется приходить.”</p>
+          <strong>Родитель ученика</strong>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-accent" id="form">
+    <div class="container two-col">
+      <div>
+        <p class="small-title">Бесплатное пробное занятие</p>
+        <h2>Приведите ребенка на бесплатное занятие и получите понятный план обучения</h2>
+        <p class="lead">Мы проведем диагностику, познакомим с преподавателем и покажем, как можно улучшить оценки, подготовиться к экзаменам или развить IT-навыки.</p>
+        <br />
+        <div class="cta-box">Места ограничены: группы до 10 человек, чтобы каждому ученику хватало внимания.</div>
+      </div>
+
+      <div class="card form-card">
+        <h3>Записаться бесплатно</h3>
+        <p class="muted">Оставьте контакты — мы подберем направление и удобное время.</p>
+        <form onsubmit="sendForm(event)">
+          <input type="text" name="name" placeholder="Имя родителя" required />
+          <input type="tel" name="phone" placeholder="Телефон" required />
+          <select name="program" required>
+            <option value="">Выберите направление</option>
+            <option>Подготовка к ОГЭ/ЕГЭ</option>
+            <option>Академия выходного дня</option>
+            <option>Пока не знаю, нужна консультация</option>
+          </select>
+          <button class="btn btn-primary" type="submit">Записаться на пробное занятие</button>
+          <p class="policy">Нажимая кнопку, вы соглашаетесь на обработку персональных данных.</p>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container footer-content">
+      <div class="logo">
+        <div class="logo-icon">X</div>
+        <span>© Школа Икс</span>
+      </div>
+      <div>☎ +7 (___) ___-__-__</div>
+    </div>
+  </footer>
+
+  <script>
+    function sendForm(event) {
+      event.preventDefault();
+      const form = event.target;
+      const name = form.name.value.trim();
+      const phone = form.phone.value.trim();
+      const program = form.program.value;
+
+      alert(
+        'Спасибо! Заявка отправлена.\n\n' +
+        'Имя: ' + name + '\n' +
+        'Телефон: ' + phone + '\n' +
+        'Направление: ' + program + '\n\n' +
+        'Сейчас форма показывает уведомление. Потом можно подключить Telegram, WhatsApp или CRM.'
+      );
+
+      form.reset();
+    }
+  </script>
+</body>
+</html
