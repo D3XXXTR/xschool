@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>CRM — Школа ИКС</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="assets/css/tokens.css">
+<link rel="stylesheet" href="assets/css/main.css">
+
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body x-data="teacherApp()" x-init="init()">
+
+<header class="top-nav">
+  <div class="container">
+    <a href="index.html" class="brand">ИКС</a>
+    <span class="brand-sub">/ CRM преподавателя</span>
+    <div class="spacer"></div>
+    <span class="muted small" x-text="userName"></span>
+    <button class="btn btn-sm btn-ghost" @click="logout()">Выйти</button>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav class="stack" style="gap:4px;">
+      <a class="sidebar-link" :class="{active: view==='today'}"         href="#today">         <span class="icn">⌂</span> Сегодня</a>
+      <a class="sidebar-link" :class="{active: view==='week'}"          href="#week">          <span class="icn">🗓</span> Неделя</a>
+      <a class="sidebar-link" :class="{active: view==='students'}"      href="#students">      <span class="icn">👥</span> Ученики</a>
+      <a class="sidebar-link" :class="{active: view==='homework'}"      href="#homework">
+        <span class="icn">📚</span> ДЗ
+        <span x-show="hwToReview.length>0" class="badge violet" style="margin-left:auto;font-size:10px;padding:2px 6px;" x-text="hwToReview.length"></span>
+      </a>
+      <a class="sidebar-link" :class="{active: view==='create-lesson'}" href="#create-lesson"> <span class="icn">➕</span> Создать урок</a>
+      <a class="sidebar-link" :class="{active: view==='stats'}"         href="#stats">         <span class="icn">📊</span> Статистика</a>
+      <a class="sidebar-link" :class="{active: view==='profile'}"       href="#profile">       <span class="icn">⚙</span> Профиль</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+    <!-- ═══════════ Сегодня ═══════════ -->
+    <section x-show="view==='today'">
+      <div class="page-head">
+        <div>
+          <h1>Сегодня и завтра<span x-show="userName">, <span x-text="userName"></span></span></h1>
+          <p class="muted small">Уроки в ближайшие два дня.</p>
+        </div>
+        <a class="btn btn-primary" href="#create-lesson">+ Урок</a>
+      </div>
+      <div class="stack">
+        <template x-for="l in todayLessons" :key="l.id">
+          <div class="row-card">
+            <div class="lead">
+              <span x-text="fmt.time(l.startAt)"></span>
+              <span class="small" x-text="fmt.date(l.startAt)"></span>
+            </div>
+            <div class="body">
+              <h4>
+                <template x-if="l.type==='group'"><span class="badge violet" style="margin-right:6px;">ГРУППА</span></template>
+                <span x-text="l._subjectTitle"></span>
+              </h4>
+              <div class="sub" x-text="l._participants.map(p=>p._name).join(', ')"></div>
+              <template x-if="l.type==='group'">
+                <div class="participants">
+                  <template x-for="p in l._participants" :key="p.studentId">
+                    <div class="participant-row">
+                      <span class="name" x-text="p._name"></span>
+                      <span class="muted small" x-text="(window.XApp.lessonStatus[p.status] || {}).label || ''"></span>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
+            <div class="meta">
+              <span class="badge" :class="l._statusInfo.badge" x-text="l._statusInfo.label"></span>
+              <button class="btn btn-sm btn-primary" x-show="canConduct(l)" @click="openLessonModal(l)">Провести</button>
+            </div>
+          </div>
+        </template>
+        <template x-if="todayLessons.length===0">
+          <div class="empty">На сегодня и завтра уроков нет.</div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ═══════════ Неделя ═══════════ -->
+    <section x-show="view==='week'">
+      <div class="page-head"><h1>Неделя</h1></div>
+      <div class="stack">
+        <template x-for="l in lessons" :key="l.id">
+          <div class="row-card">
+            <div class="lead">
+              <span x-text="fmt.time(l.startAt)"></span>
+              <span class="small" x-text="fmt.date(l.startAt)"></span>
+            </div>
+            <div class="body">
+              <h4>
+                <template x-if="l.type==='group'"><span class="badge violet" style="margin-right:6px;">ГРУППА</span></template>
+                <span x-text="l._subjectTitle"></span>
+              </h4>
+              <div class="sub" x-text="l._participants.map(p=>p._name).join(', ')"></div>
+            </div>
+            <div class="meta">
+              <span class="badge" :class="l._statusInfo.badge" x-text="l._statusInfo.label"></span>
+              <button class="btn btn-sm" x-show="canConduct(l)" @click="openLessonModal(l)">Провести</button>
+            </div>
+          </div>
+        </template>
+        <template x-if="lessons.length===0">
+          <div class="empty">Уроков нет.</div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ═══════════ Ученики ═══════════ -->
+    <section x-show="view==='students'">
+      <div class="page-head"><h1>Ученики</h1></div>
+      <div class="grid-2">
+        <template x-for="s in students" :key="s.id">
+          <div class="card">
+            <h3 x-text="s.name"></h3>
+            <p class="muted small" x-text="s.grade + ' класс · уроков: ' + studentLessonCount(s.id)"></p>
+          </div>
+        </template>
+        <template x-if="students.length===0">
+          <div class="empty">Учеников ещё не назначено.</div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ═══════════ ДЗ ═══════════ -->
+    <section x-show="view==='homework'">
+      <div class="page-head">
+        <h1>Домашние задания</h1>
+        <div class="row" style="gap:6px;">
+          <button class="pill" :class="{active: hwFilter==='to_review'}" @click="hwFilter='to_review'">К проверке (<span x-text="hwToReview.length"></span>)</button>
+          <button class="pill" :class="{active: hwFilter==='all'}"        @click="hwFilter='all'">Все</button>
+          <button class="pill" :class="{active: hwFilter==='checked'}"    @click="hwFilter='checked'">Проверено</button>
+        </div>
+      </div>
+
+      <!-- Поиск + сортировка -->
+      <div class="row" style="gap: var(--s-3); flex-wrap: wrap; margin-bottom: var(--s-4);">
+        <input class="input" type="search" placeholder="Поиск по ученику, предмету, названию…"
+               x-model="hwSearch" style="max-width: 360px;">
+        <div class="row" style="gap: 6px;">
+          <span class="muted small">Сортировать:</span>
+          <div class="pill-radio">
+            <button class="pill" :class="{active: hwSort==='deadline'}" @click="hwSort='deadline'">по дедлайну</button>
+            <button class="pill" :class="{active: hwSort==='status'}"   @click="hwSort='status'">по статусу</button>
+            <button class="pill" :class="{active: hwSort==='student'}"  @click="hwSort='student'">по ученику</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <template x-for="hw in filteredHomeworks" :key="hw.id">
+          <div class="row-card">
+            <div class="lead"><span style="font-size:18px;">📚</span></div>
+            <div class="body">
+              <h4 x-text="hw.title"></h4>
+              <div class="sub">
+                <span x-text="hw._subjectTitle"></span> · <span x-text="hw._studentName"></span> ·
+                <span class="badge" :class="hw._deadlineInfo.className" x-text="hw._deadlineInfo.text"></span>
+              </div>
+            </div>
+            <div class="meta">
+              <span class="badge" :class="hw._statusInfo.badge" x-text="hw._statusInfo.label"></span>
+              <button class="btn btn-sm btn-primary"
+                      x-show="hw.status === 'submitted'"
+                      @click="openHwModal(hw)">Проверить</button>
+              <button class="btn btn-sm"
+                      x-show="hw.status !== 'submitted'"
+                      @click="openHwModal(hw)">Открыть</button>
+            </div>
+          </div>
+        </template>
+        <template x-if="filteredHomeworks.length===0">
+          <div class="empty">В этом разделе ничего нет.</div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ═══════════ Создать урок ═══════════ -->
+    <section x-show="view==='create-lesson'">
+      <div class="page-head"><h1>Создать урок</h1></div>
+
+      <div class="card stack" style="gap: var(--s-4);">
+        <div class="field">
+          <label>Тип урока</label>
+          <div class="pill-radio">
+            <button class="pill" :class="{active: form.type==='individual'}" @click="form.type='individual'; form.studentIds=[]">Индивидуальный</button>
+            <button class="pill" :class="{active: form.type==='group'}"      @click="form.type='group'; form.studentIds=[]">Групповой</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Предмет</label>
+          <select class="select" x-model="form.subjectId">
+            <option value="">— выберите —</option>
+            <template x-for="s in availableSubjects" :key="s.id">
+              <option :value="s.id" x-text="s.title"></option>
+            </template>
+          </select>
+        </div>
+
+        <div class="field" x-show="form.type==='individual'">
+          <label>Ученик</label>
+          <select class="select" x-model="form.studentIdSingle">
+            <option value="">— выберите —</option>
+            <template x-for="s in allStudents" :key="s.id">
+              <option :value="s.id" x-text="s.name + ' · ' + s.grade + ' класс'"></option>
+            </template>
+          </select>
+        </div>
+
+        <div class="field" x-show="form.type==='group'">
+          <label>Ученики (отметьте 2 и более)</label>
+          <div class="stack-sm" style="max-height: 220px; overflow:auto; padding: 8px; border: 1px solid var(--border); border-radius: var(--r-sm);">
+            <template x-for="s in allStudents" :key="s.id">
+              <label class="row" style="gap: 10px; cursor: pointer;">
+                <input type="checkbox" :value="s.id" x-model="form.studentIds">
+                <span x-text="s.name + ' · ' + s.grade + ' класс'"></span>
+              </label>
+            </template>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label>Дата</label>
+            <input type="date" class="input" x-model="form.date">
+          </div>
+          <div class="field">
+            <label>Время</label>
+            <input type="time" class="input" x-model="form.time">
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label>Длительность (мин)</label>
+            <input type="number" class="input" min="15" max="240" step="15" x-model.number="form.durationMin">
+          </div>
+          <div class="field">
+            <label>Тема (опц.)</label>
+            <input type="text" class="input" x-model="form.topic" placeholder="Например: квадратные уравнения">
+          </div>
+        </div>
+
+        <p x-show="form.error"  class="inline-alert error" x-text="form.error"></p>
+        <p x-show="form.result" class="inline-alert info"  x-text="form.result"></p>
+
+        <div class="row" style="justify-content: flex-end; gap: 10px;">
+          <button class="btn btn-ghost" @click="resetForm()">Очистить</button>
+          <button class="btn btn-primary" @click="submitForm()">Создать урок</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ Статистика ═══════════ -->
+    <section x-show="view==='stats'">
+      <div class="page-head"><h1>Моя статистика</h1></div>
+      <div class="grid-3">
+        <div class="card center">
+          <div style="font-family: var(--ff-display); font-size: 32px; font-weight: 800;" x-text="stats.lessonsDone"></div>
+          <div class="muted small">уроков проведено</div>
+        </div>
+        <div class="card center">
+          <div style="font-family: var(--ff-display); font-size: 32px; font-weight: 800;" x-text="stats.hwToReview"></div>
+          <div class="muted small">ДЗ к проверке</div>
+        </div>
+        <div class="card center">
+          <div style="font-family: var(--ff-display); font-size: 32px; font-weight: 800;" x-text="stats.activeStudents"></div>
+          <div class="muted small">активных учеников</div>
+        </div>
+      </div>
+
+      <h2 class="section-head"><span>Расписание</span></h2>
+      <div class="card">
+        <div class="row" style="justify-content: space-between;">
+          <span class="muted small">Запланировано</span>
+          <b x-text="stats.lessonsPlanned"></b>
+        </div>
+        <div class="row" style="justify-content: space-between;">
+          <span class="muted small">Проведено</span>
+          <b x-text="stats.lessonsDone"></b>
+        </div>
+        <div class="row" style="justify-content: space-between;">
+          <span class="muted small">Пропусков</span>
+          <b x-text="stats.lessonsMissed"></b>
+        </div>
+        <div class="row" style="justify-content: space-between;">
+          <span class="muted small">Отмен</span>
+          <b x-text="stats.lessonsCancelled"></b>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ═══════════ Профиль ═══════════ -->
+    <section x-show="view==='profile'">
+      <div class="page-head"><h1>Профиль</h1></div>
+      <div class="card">
+        <h3 x-text="userName"></h3>
+        <p class="muted small" x-text="'Телефон: ' + userPhone"></p>
+        <p class="muted small" x-text="'Предметы: ' + userSubjects.join(', ')"></p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<nav class="bottom-nav">
+  <div class="bottom-nav-i">
+    <a href="#today"         :class="{active: view==='today'}"         x-data><span class="icn">⌂</span><span>Сегодня</span></a>
+    <a href="#week"          :class="{active: view==='week'}"          x-data><span class="icn">🗓</span><span>Неделя</span></a>
+    <a href="#students"      :class="{active: view==='students'}"      x-data><span class="icn">👥</span><span>Ученики</span></a>
+    <a href="#homework"      :class="{active: view==='homework'}"      x-data><span class="icn">📚</span><span>ДЗ</span></a>
+    <a href="#create-lesson" :class="{active: view==='create-lesson'}" x-data><span class="icn">➕</span><span>Урок</span></a>
+  </div>
+</nav>
+
+<!-- ═══════════ Модалка: проведение урока ═══════════ -->
+<div class="modal-overlay" x-show="lessonModal.open" x-cloak @click.self="closeLessonModal()">
+  <div class="modal" x-show="lessonModal.open" @click.stop>
+    <h3>Проведение урока</h3>
+    <p class="muted small" x-show="lessonModal.lesson">
+      <template x-if="lessonModal.lesson?.type === 'group'">
+        <span class="badge violet" style="margin-right:6px;">ГРУППА</span>
+      </template>
+      <span x-text="lessonModal.lesson?._subjectTitle"></span> ·
+      <span x-text="lessonModal.lesson?._date + ', ' + lessonModal.lesson?._time"></span>
+    </p>
+
+    <div class="grid-2" style="margin-top: var(--s-4);">
+      <div class="field">
+        <label>Тема</label>
+        <input class="input" type="text" x-model="lessonModal.topic">
+      </div>
+      <div class="field">
+        <label>Заметки</label>
+        <input class="input" type="text" x-model="lessonModal.notes">
+      </div>
+    </div>
+
+    <h4 style="margin-top: var(--s-5); margin-bottom: 6px;">
+      <span x-text="lessonModal.lesson?.type === 'group' ? 'Участники' : 'Статус ученика'"></span>
+    </h4>
+
+    <div class="stack">
+      <template x-for="(p, idx) in lessonModal.participants" :key="p.studentId">
+        <div class="card" style="padding: 12px;">
+          <div class="row" style="justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+            <b x-text="p._name"></b>
+            <div class="pill-radio">
+              <button class="pill" :class="{active: p.status==='done'}"      @click="p.status='done'; p.actor='teacher'">Проведён</button>
+              <button class="pill" :class="{active: p.status==='missed'}"    @click="p.status='missed'; p.actor='teacher'">Пропуск</button>
+              <button class="pill" :class="{active: p.status==='cancelled'}" @click="p.status='cancelled'">Отмена</button>
+            </div>
+          </div>
+          <div x-show="p.status==='cancelled'" class="row" style="margin-top: 10px; gap:10px; flex-wrap: wrap;">
+            <span class="muted small">Кто отменил:</span>
+            <div class="pill-radio">
+              <button class="pill" :class="{active: p.actor==='teacher'}" @click="p.actor='teacher'">Я (преподаватель)</button>
+              <button class="pill" :class="{active: p.actor==='school'}"  @click="p.actor='school'">Школа</button>
+              <button class="pill" :class="{active: p.actor==='parent'}"  @click="p.actor='parent'">Родитель/ученик</button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Выдача ДЗ после урока -->
+    <div style="margin-top: var(--s-5);">
+      <button class="btn btn-sm" @click="lessonModal.giveHw = !lessonModal.giveHw"
+              x-text="lessonModal.giveHw ? '— Скрыть форму ДЗ' : '+ Выдать ДЗ'"></button>
+      <p class="muted xsmall" style="margin-top: 6px;" x-show="lessonModal.lesson?.type === 'group'">
+        Для группы будет создано отдельное ДЗ для каждого участника, кроме отменивших.
+      </p>
+    </div>
+
+    <div x-show="lessonModal.giveHw" class="stack" style="margin-top: var(--s-3);">
+      <p class="muted xsmall">
+        Все поля необязательны. Если оставить название пустым — будет «Домашнее задание».
+        Дедлайн можно не указывать — у ДЗ будет статус «без дедлайна».
+      </p>
+      <div class="field">
+        <label>Название (опц.)</label>
+        <input class="input" type="text" x-model="lessonModal.hw.title"
+               placeholder="Если пусто — будет «Домашнее задание»">
+      </div>
+      <div class="field">
+        <label>Описание задания (опц.)</label>
+        <textarea class="textarea" rows="3" x-model="lessonModal.hw.description"
+                  placeholder="Что сделать, какие номера/страницы"></textarea>
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Дата дедлайна (опц.)</label>
+          <input type="date" class="input" x-model="lessonModal.hw.deadlineDate">
+        </div>
+        <div class="field">
+          <label>Время (опц.)</label>
+          <input type="time" class="input" x-model="lessonModal.hw.deadlineTime">
+        </div>
+      </div>
+    </div>
+
+    <p x-show="lessonModal.error"  class="inline-alert error" style="margin-top: var(--s-3);" x-text="lessonModal.error"></p>
+    <p x-show="lessonModal.result" class="inline-alert info"  style="margin-top: var(--s-3);" x-text="lessonModal.result"></p>
+
+    <div class="modal-foot">
+      <button class="btn btn-ghost" @click="closeLessonModal()">Закрыть</button>
+      <button class="btn btn-primary" @click="submitLesson()" :disabled="!!lessonModal.result">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ Модалка: проверка ДЗ ═══════════ -->
+<div class="modal-overlay" x-show="hwModal.open" x-cloak @click.self="closeHwModal()">
+  <div class="modal" x-show="hwModal.open" @click.stop>
+    <h3>Проверка ДЗ</h3>
+    <p class="muted small" x-show="hwModal.hw">
+      <span x-text="hwModal.hw?.title"></span> ·
+      <span x-text="hwModal.hw?._subjectTitle"></span> ·
+      ученик: <b x-text="hwModal.hw?._studentName"></b> ·
+      <span class="badge" :class="hwModal.hw?._deadlineInfo.className"
+            x-text="hwModal.hw?._deadlineInfo.text"></span>
+    </p>
+
+    <div class="field" style="margin-top: var(--s-4);">
+      <label>Задание</label>
+      <div class="card" style="padding: 12px; background: var(--bg-3);" x-text="hwModal.hw?.description || '—'"></div>
+    </div>
+
+    <div class="field" style="margin-top: var(--s-3);">
+      <label>Ответ ученика</label>
+      <div class="card" style="padding: 12px; background: var(--bg-3); white-space: pre-wrap;"
+           x-text="hwModal.hw?.studentAnswer || '(только файлы)'"></div>
+      <div x-show="(hwModal.hw?.files || []).length > 0" class="stack-sm" style="margin-top: 8px;">
+        <template x-for="(f,i) in hwModal.hw?.files || []" :key="i">
+          <div class="file-row">
+            <span class="ico" x-text="window.XApp.fileIcon(f)"></span>
+            <span class="name" x-text="f.name"></span>
+            <span class="meta">
+              <span x-text="formatSize(f.size)"></span>
+              <button class="btn btn-sm btn-ghost" style="margin-left: 6px;"
+                      @click="downloadFile(f)">Скачать</button>
+            </span>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- Если уже проверено / возвращено — показываем как было -->
+    <div x-show="hwModal.hw?.status === 'checked' || hwModal.hw?.status === 'needs_revision'"
+         class="inline-alert info" style="margin-top: var(--s-3);">
+      <b x-text="hwModal.hw?.status === 'checked' ? 'Принято' : 'На доработке'"></b>
+      <span x-show="hwModal.hw?.score">, оценка <b x-text="hwModal.hw?.score"></b>/5</span>
+      <span x-show="hwModal.hw?.teacherComment"> — «<span x-text="hwModal.hw?.teacherComment"></span>»</span>
+    </div>
+
+    <!-- Форма проверки только для submitted -->
+    <div x-show="hwModal.hw?.status === 'submitted'" class="stack" style="margin-top: var(--s-3);">
+      <div class="field">
+        <label>Оценка (опц.)</label>
+        <select class="select" x-model="hwModal.score">
+          <option value="">— без оценки —</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>
+          Комментарий
+          <span x-show="hwModal.action==='needs_revision'" class="muted xsmall">— обязательно при «На доработку»</span>
+        </label>
+        <textarea class="textarea" rows="3" x-model="hwModal.comment"
+                  placeholder="Например: переделай №3, формулу не до конца раскрыл"></textarea>
+      </div>
+    </div>
+
+    <p x-show="hwModal.error"  class="inline-alert error" style="margin-top: var(--s-3);" x-text="hwModal.error"></p>
+    <p x-show="hwModal.result" class="inline-alert info"  style="margin-top: var(--s-3);" x-text="hwModal.result"></p>
+
+    <div class="modal-foot">
+      <button class="btn btn-ghost" @click="closeHwModal()">Закрыть</button>
+      <template x-if="hwModal.hw?.status === 'submitted'">
+        <div class="row" style="gap:10px;">
+          <button class="btn"             @click="hwModal.action='needs_revision'; submitHwReview()">На доработку</button>
+          <button class="btn btn-primary" @click="hwModal.action='checked';        submitHwReview()">Принять</button>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/store.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/billing.js"></script>
+<script src="assets/js/homework.js"></script>
+<script>
+const TEACHER_VIEWS = ['today','week','students','homework','create-lesson','stats','profile'];
+
+function teacherApp() {
+  return {
+    /* state */
+    view: 'today',
+    session: null,
+    userName: '',
+    userPhone: '',
+    userSubjects: [],
+    userSubjectIds: [],
+
+    lessons: [],
+    todayLessons: [],
+    students: [],
+    allStudents: [],
+    homeworks: [],
+    hwFilter: 'to_review',
+    hwSearch: '',
+    hwSort: 'deadline',
+
+
+    /* модалка проведения */
+    lessonModal: {
+      open: false,
+      lesson: null,
+      topic: '', notes: '',
+      participants: [],            // [{studentId, _name, status, actor}]
+      giveHw: false,
+      hw: { title: '', description: '', deadlineDate: '', deadlineTime: '' },
+      error: '', result: ''
+    },
+
+    /* модалка проверки ДЗ */
+    hwModal: {
+      open: false,
+      hw: null,
+      action: '',           // 'checked' | 'needs_revision'
+      score: '',
+      comment: '',
+      error: '', result: ''
+    },
+
+    /* форма создания урока */
+    form: {
+      type: 'individual',
+      subjectId: '',
+      studentIdSingle: '',
+      studentIds: [],
+      date: '',
+      time: '',
+      durationMin: 60,
+      topic: '',
+      error: '', result: ''
+    },
+
+    /* helpers */
+    get fmt() { return window.XApp.fmt; },
+    get hwToReview() { return this.homeworks.filter(h => h.status === 'submitted'); },
+    get filteredHomeworks() {
+      let list = this.homeworks;
+      // фильтр-вкладка
+      if (this.hwFilter === 'to_review') list = list.filter(h => h.status === 'submitted');
+      else if (this.hwFilter === 'checked') list = list.filter(h => h.status === 'checked');
+      // поиск
+      const q = (this.hwSearch || '').trim().toLowerCase();
+      if (q) {
+        list = list.filter(h =>
+          (h.title || '').toLowerCase().includes(q) ||
+          (h._studentName || '').toLowerCase().includes(q) ||
+          (h._subjectTitle || '').toLowerCase().includes(q)
+        );
+      }
+      // сортировка
+      const order = ['submitted','needs_revision','assigned','in_progress','checked'];
+      list = list.slice();
+      if (this.hwSort === 'deadline') {
+        list.sort((a, b) => {
+          const ax = a.deadline ? new Date(a.deadline).getTime() : Number.POSITIVE_INFINITY;
+          const bx = b.deadline ? new Date(b.deadline).getTime() : Number.POSITIVE_INFINITY;
+          return ax - bx;
+        });
+      } else if (this.hwSort === 'status') {
+        list.sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status));
+      } else if (this.hwSort === 'student') {
+        list.sort((a, b) => (a._studentName || '').localeCompare(b._studentName || '', 'ru'));
+      }
+      return list;
+    },
+    get availableSubjects() {
+      const all = window.XSchool.state.subjects;
+      if (!this.userSubjectIds.length) return all;
+      return all.filter(s => this.userSubjectIds.includes(s.id));
+    },
+    /* ── Статистика преподавателя ─── */
+    get stats() {
+      const counts = { planned: 0, done: 0, missed: 0, cancelled: 0 };
+      const activeIds = new Set();
+      const now = Date.now();
+      for (const l of this.lessons) {
+        for (const p of (l._participants || l.participants || [])) {
+          if (counts[p.status] != null) counts[p.status]++;
+          if (['planned','tomorrow'].includes(p.status) && new Date(l.startAt).getTime() >= now) {
+            activeIds.add(p.studentId);
+          }
+        }
+      }
+      const hwToReview = this.homeworks.filter(h => h.status === 'submitted').length;
+      return {
+        lessonsPlanned:   counts.planned,
+        lessonsDone:      counts.done,
+        lessonsMissed:    counts.missed,
+        lessonsCancelled: counts.cancelled,
+        hwToReview,
+        activeStudents:   activeIds.size
+      };
+    },
+
+    /* lifecycle */
+    init() {
+      const session = window.XApp.bootGuard('teacher');
+      if (!session) return;
+      this.session = session;
+
+      this.reload();
+
+      window.XSchool.subscribe(() => this.reload());
+
+      window.XApp.watchHash(() => {
+        this.view = window.XApp.parseHashView(TEACHER_VIEWS, 'today');
+      });
+    },
+    reload() {
+      const session = this.session;
+      if (!session) return;
+      const Store = window.XSchool;
+      const App   = window.XApp;
+      const user  = Store.getUser(session.userId);
+      this.userName = user ? user.name : '';
+      this.userPhone = user ? user.phone : '';
+      this.userSubjectIds = (user?.subjects || []);
+      this.userSubjects = this.userSubjectIds
+        .map(id => (Store.getSubject(id) || {}).title || id);
+
+      // полные данные участников нужны для CRM — viewerIds НЕ передаём
+      this.lessons = Store.lessonsOfTeacher(session.userId)
+        .map(l => App.hydrateLesson(l, Store))
+        .sort((a,b) => new Date(a.startAt) - new Date(b.startAt));
+
+      const dayStart = new Date(); dayStart.setHours(0,0,0,0);
+      const dayEnd   = new Date(); dayEnd.setDate(dayEnd.getDate()+1); dayEnd.setHours(23,59,59,999);
+      this.todayLessons = this.lessons.filter(l => {
+        const t = new Date(l.startAt);
+        return t >= dayStart && t <= dayEnd;
+      });
+
+      // ученики из всех его уроков
+      const ids = new Set();
+      this.lessons.forEach(l => l._participants.forEach(p => ids.add(p.studentId)));
+      this.students = [...ids].map(id => Store.getUser(id)).filter(Boolean);
+
+      // все ученики системы — для формы создания
+      this.allStudents = Store.state.users.filter(u => u.role === 'student');
+
+      // ДЗ преподавателя
+      this.homeworks = Store.state.homeworks
+        .filter(h => h.teacherId === session.userId)
+        .map(h => App.hydrateHomework(h, Store))
+        .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+
+
+      // если открыта модалка проверки — обновим её
+      if (this.hwModal.open && this.hwModal.hw) {
+        const fresh = Store.getHomework(this.hwModal.hw.id);
+        if (fresh) this.hwModal.hw = App.hydrateHomework(fresh, Store);
+      }
+    },
+    studentLessonCount(studentId) {
+      return this.lessons.filter(l => l._participants.some(p => p.studentId === studentId)).length;
+    },
+    canConduct(l) {
+      // проводим урок, пока он не финален
+      return ['planned','tomorrow'].includes(l.status);
+    },
+    formatSize(n) {
+      if (!n) return '—';
+      if (n < 1024) return n + ' Б';
+      if (n < 1024*1024) return (n/1024).toFixed(1) + ' КБ';
+      return (n/1024/1024).toFixed(1) + ' МБ';
+    },
+    downloadFile(f) {
+      // MVP: реальная загрузка файлов на сервер не подключена.
+      // Эта кнопка-заглушка показывает понятное сообщение.
+      window.XApp.toast('Демо: файлы хранятся как метаданные. Скачивание появится после подключения бэкенда.');
+    },
+
+    /* ── Проведение урока ──────────────────────────────── */
+    openLessonModal(lesson) {
+      this.lessonModal.open = true;
+      this.lessonModal.lesson = lesson;
+      this.lessonModal.topic = lesson.topic || '';
+      this.lessonModal.notes = lesson.notes || '';
+      // копируем участников с дефолтным статусом 'done'
+      this.lessonModal.participants = lesson._participants.map(p => ({
+        studentId: p.studentId,
+        _name: p._name,
+        status: 'done',
+        actor: 'teacher'
+      }));
+      this.lessonModal.giveHw = false;
+      this.lessonModal.hw = { title: '', description: '', deadlineDate: '', deadlineTime: '' };
+      this.lessonModal.error = '';
+      this.lessonModal.result = '';
+    },
+    closeLessonModal() {
+      this.lessonModal.open = false;
+      this.lessonModal.lesson = null;
+    },
+    submitLesson() {
+      const m = this.lessonModal;
+      m.error = '';
+      const lesson = m.lesson;
+      const Store  = window.XSchool;
+
+      // 1) Применить статусы по каждому участнику через биллинг.
+      //    Никаких ручных списаний — только XBilling.applyLessonStatus.
+      const results = [];
+      for (const p of m.participants) {
+        if (!['done','missed','cancelled'].includes(p.status)) continue;
+        const r = window.XBilling.applyLessonStatus(lesson.id, {
+          studentId: p.studentId,
+          status: p.status,
+          actor: p.actor || 'teacher',
+          noticeAt: new Date().toISOString()
+        });
+        results.push({ studentId: p.studentId, name: p._name, r });
+      }
+
+      // 2) Обновим тему/заметки в самом уроке
+      Store.updateLesson(lesson.id, {
+        topic: m.topic || lesson.topic,
+        notes: m.notes || lesson.notes
+      });
+
+      // 3) Выдача ДЗ — если запрошено.
+      //    Поля не обязательны:
+      //      • title пуст → «Домашнее задание»;
+      //      • description, deadline, files, comment — могут отсутствовать.
+      let hwCreated = 0;
+      if (m.giveHw) {
+        const title = ((m.hw.title || '').trim()) || 'Домашнее задание';
+        const desc  = (m.hw.description || '').trim();
+        let deadlineIso = null;
+        if (m.hw.deadlineDate && m.hw.deadlineTime) {
+          const d = new Date(m.hw.deadlineDate + 'T' + m.hw.deadlineTime + ':00');
+          if (!isNaN(d.getTime())) deadlineIso = d.toISOString();
+        } else if (m.hw.deadlineDate) {
+          // только дата → конец дня
+          const d = new Date(m.hw.deadlineDate + 'T23:59:00');
+          if (!isNaN(d.getTime())) deadlineIso = d.toISOString();
+        }
+        // ДЗ выдаём всем участникам, кроме отменивших.
+        // Для группового — отдельный hw для каждого ученика (требование).
+        for (const p of m.participants) {
+          if (p.status === 'cancelled') continue;
+          Store.addHomework({
+            lessonId: lesson.id,
+            studentId: p.studentId,
+            teacherId: lesson.teacherId,
+            subjectId: lesson.subjectId,
+            title,
+            description: desc,
+            deadline: deadlineIso,           // null допустим
+            status: 'assigned'
+          });
+          hwCreated++;
+        }
+      }
+
+      // 4) Отчёт
+      const charged = results.filter(x => x.r.ok && x.r.charge).length;
+      const skipped = results.filter(x => x.r.ok && !x.r.charge).length;
+      const dupes   = results.filter(x => !x.r.ok && x.r.error === 'already_charged').length;
+      const lines = [];
+      lines.push(`Обновлено: ${results.length} участник(а/ов).`);
+      lines.push(`Списаний: ${charged}, без списания: ${skipped}` + (dupes ? `, повторно: ${dupes}` : '') + '.');
+      if (hwCreated) lines.push(`Выдано ДЗ: ${hwCreated} ученик(а/ов).`);
+      m.result = lines.join(' ');
+    },
+
+    /* ── Проверка ДЗ ──────────────────────────────────── */
+    openHwModal(hw) {
+      this.hwModal.open = true;
+      this.hwModal.hw = hw;
+      this.hwModal.action = '';
+      this.hwModal.score = '';
+      this.hwModal.comment = '';
+      this.hwModal.error = '';
+      this.hwModal.result = '';
+    },
+    closeHwModal() { this.hwModal.open = false; this.hwModal.hw = null; },
+
+    submitHwReview() {
+      const m = this.hwModal;
+      m.error = '';
+      const action = m.action;
+      if (!action) { m.error = 'Выберите действие.'; return; }
+
+      // комментарий обязателен при «нужно доработать»
+      const comment = (m.comment || '').trim();
+      if (action === 'needs_revision' && !comment) {
+        m.error = 'Комментарий обязателен при «На доработку».';
+        return;
+      }
+
+      // оценка опциональна
+      const payload = { teacherComment: comment };
+      if (m.score !== '' && m.score !== null) payload.score = Number(m.score);
+
+      const r = window.XHomework.transitionHomework(m.hw.id, action, payload);
+      if (!r.ok) {
+        if (r.error === 'invalid_score') m.error = 'Оценка должна быть от 1 до 5.';
+        else if (r.error === 'invalid_transition') m.error = 'В этом статусе действие недоступно.';
+        else m.error = 'Не удалось: ' + (r.error || 'unknown');
+        return;
+      }
+      m.result = action === 'checked'
+        ? 'ДЗ принято. Уведомления отправлены ученику и родителю.'
+        : 'Возвращено на доработку. Уведомления отправлены.';
+    },
+
+    /* ── Создание урока ────────────────────────────────── */
+    submitForm() {
+      const f = this.form;
+      f.error = ''; f.result = '';
+      const Store = window.XSchool;
+
+      if (!f.subjectId) { f.error = 'Выберите предмет.'; return; }
+
+      let participants = [];
+      if (f.type === 'individual') {
+        if (!f.studentIdSingle) { f.error = 'Выберите ученика.'; return; }
+        participants = [{ studentId: f.studentIdSingle, status: 'planned' }];
+      } else {
+        if (!Array.isArray(f.studentIds) || f.studentIds.length < 2) {
+          f.error = 'Для группового урока выберите не менее 2 учеников.'; return;
+        }
+        participants = f.studentIds.map(id => ({ studentId: id, status: 'planned' }));
+      }
+
+      if (!f.date || !f.time) { f.error = 'Укажите дату и время.'; return; }
+      const startAt = new Date(f.date + 'T' + f.time + ':00');
+      if (isNaN(startAt.getTime())) { f.error = 'Некорректная дата или время.'; return; }
+
+      const dur = Number(f.durationMin) || 60;
+      if (dur < 15 || dur > 240) { f.error = 'Длительность от 15 до 240 минут.'; return; }
+
+      Store.addLesson({
+        subjectId: f.subjectId,
+        teacherId: this.session.userId,
+        type: f.type,
+        participants,
+        startAt: startAt.toISOString(),
+        durationMin: dur,
+        topic: f.topic || '',
+        status: 'planned'
+      });
+      f.result = 'Урок создан. Появится в расписании родителя и ученика.';
+      // частичный сброс — чтобы можно было быстро создать ещё один похожий
+      f.topic = '';
+      f.studentIdSingle = '';
+      f.studentIds = [];
+    },
+    resetForm() {
+      this.form = {
+        type: 'individual', subjectId: '',
+        studentIdSingle: '', studentIds: [],
+        date: '', time: '', durationMin: 60, topic: '',
+        error: '', result: ''
+      };
+    },
+
+    logout() { window.XAuth.logout(); }
+  };
+}
+</script>
+</body>
+</html>

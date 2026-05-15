@@ -1,0 +1,117 @@
+/* ══════════════════════════════════════════════════════════
+   Школа ИКС — DESIGN TOKENS
+   Источник истины для цветов / типографики / отступов / теней.
+   Опирается на docs/03_DESIGN_SYSTEM.md
+   ══════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Backgrounds ───────────────────────────────────── */
+  --bg:    #07061a;
+  --bg-2:  #0d0b24;
+  --bg-3:  #13112e;
+  --bg-4:  #1a1840;
+
+  /* ── Text ──────────────────────────────────────────── */
+  --text:    #f1f5f9;
+  --muted:   #94a3b8;
+  --muted-2: #64748b;
+
+  /* ── Surfaces ──────────────────────────────────────── */
+  --border:  rgba(255,255,255,.07);
+  --border-2:rgba(255,255,255,.12);
+  --card:    rgba(255,255,255,.03);
+  --card-2:  rgba(255,255,255,.05);
+
+  /* ── Accents (default = mode "school") ─────────────── */
+  --a:   #7c3aed;
+  --a-2: #a855f7;
+  --a-3: #ec4899;
+  --a-4: #f59e0b;
+
+  /* ── Status ────────────────────────────────────────── */
+  --green:   #10b981;
+  --green-2: #34d399;
+  --blue:    #3b82f6;
+  --red:     #ef4444;
+  --yellow:  #fbbf24;
+
+  /* ── Typography ────────────────────────────────────── */
+  --ff-display: 'Unbounded', system-ui, sans-serif;
+  --ff-body:    'Nunito', system-ui, sans-serif;
+  --ff-mono:    'JetBrains Mono', ui-monospace, monospace;
+  --ff-serif:   'Cormorant Garamond', serif;
+
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 15px;
+  --fs-lg: 18px;
+  --fs-xl: 22px;
+
+  /* ── Spacing scale ─────────────────────────────────── */
+  --s-1:  4px;
+  --s-2:  8px;
+  --s-3:  12px;
+  --s-4:  16px;
+  --s-5:  20px;
+  --s-6:  24px;
+  --s-8:  32px;
+  --s-10: 40px;
+  --s-12: 56px;
+  --s-16: 72px;
+
+  /* ── Radius ────────────────────────────────────────── */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-pill: 999px;
+
+  /* ── Shadows / glows ───────────────────────────────── */
+  --glow:    0 0 60px rgba(124,58,237,.22);
+  --bshadow: 0 4px 28px rgba(124,58,237,.45);
+  --shadow-card: 0 6px 24px rgba(0,0,0,.25);
+
+  /* ── Gradients ─────────────────────────────────────── */
+  --grad-primary: linear-gradient(135deg, var(--a), var(--a-3));
+  --grad-soft:    linear-gradient(135deg, rgba(124,58,237,.18), rgba(236,72,153,.05));
+
+  /* ── Layout sizes ──────────────────────────────────── */
+  --nav-h:     72px;
+  --tabbar-h:  64px;
+  --sidebar-w: 240px;
+  --container: 1400px;
+
+  /* ── Motion ────────────────────────────────────────── */
+  --t-fast: .15s ease;
+  --t-mid:  .25s ease;
+  --t-slow: .5s ease;
+}
+
+/* ══════════════════════════════════════════════════════════
+   MODE: IT-академия
+   ══════════════════════════════════════════════════════════ */
+body[data-mode="academy"] {
+  --a:   #00FF94;
+  --a-2: #00cc76;
+  --a-3: #FF3D71;
+  --a-4: #FFD93D;
+  --ff-display: var(--ff-mono);
+  --glow:    0 0 60px rgba(0,255,148,.12);
+  --bshadow: 0 4px 28px rgba(0,255,148,.35);
+  --grad-primary: linear-gradient(135deg, #00FF94, #00cc76);
+}
+
+/* ══════════════════════════════════════════════════════════
+   MODE: ОГЭ / ЕГЭ
+   ══════════════════════════════════════════════════════════ */
+body[data-mode="exam"] {
+  --a:   #D4A574;
+  --a-2: #e8c090;
+  --a-3: #C7906A;
+  --a-4: #a0c4ff;
+  --ff-display: var(--ff-serif);
+  --glow:    0 0 60px rgba(212,165,116,.15);
+  --bshadow: 0 4px 28px rgba(212,165,116,.4);
+  --grad-primary: linear-gradient(135deg, #D4A574, #C7906A);
+}

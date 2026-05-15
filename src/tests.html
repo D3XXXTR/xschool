@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Тесты — Школа ИКС</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Nunito:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="assets/css/tokens.css">
+<link rel="stylesheet" href="assets/css/main.css">
+
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+<style>
+  .results { font-family: var(--ff-mono); font-size: 13px; }
+  .res { display: grid; grid-template-columns: 60px 1fr; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--border); align-items: start; }
+  .res:last-child { border-bottom: 0; }
+  .res .tag { font-weight: 700; padding: 2px 6px; border-radius: 4px; text-align: center; font-size: 11px; }
+  .res.ok  .tag { color: var(--green-2); background: rgba(16,185,129,.12); }
+  .res.bad .tag { color: var(--red);     background: rgba(239,68,68,.14); }
+  .err { color: var(--red); margin-top: 4px; font-size: 12px; white-space: pre-wrap; }
+</style>
+</head>
+<body x-data="testsApp()" x-init="init()">
+
+<header class="top-nav">
+  <div class="container">
+    <a href="index.html" class="brand">ИКС</a>
+    <span class="brand-sub">/ Тесты</span>
+    <div class="spacer"></div>
+    <a class="btn btn-sm btn-ghost" href="index.html">На главную</a>
+  </div>
+</header>
+
+<main class="main container">
+  <div class="page-head">
+    <div>
+      <h1>Тесты</h1>
+      <p class="muted small">
+        Прогон проверок для биллинга и ДЗ. Каждый тест работает в «песочнице» —
+        состояние сбрасывается на seeds и восстанавливается обратно.
+      </p>
+    </div>
+    <div class="row">
+      <button class="btn btn-primary" @click="runAll()">Прогнать все</button>
+      <button class="btn" @click="runOne('billing')">Только billing</button>
+      <button class="btn" @click="runOne('homework')">Только homework</button>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0; margin-bottom: var(--s-5);">
+    <div class="row" style="padding: 12px 16px; border-bottom: 1px solid var(--border);">
+      <h3>Сводка</h3>
+      <div class="spacer"></div>
+      <span class="badge" :class="summary.failed===0 && summary.passed>0 ? 'green' : (summary.failed>0 ? 'red' : '')">
+        <span x-text="summary.passed"></span>/<span x-text="summary.total"></span> прошло
+      </span>
+    </div>
+    <div style="padding: 12px 16px; font-size: 13px; color: var(--muted);">
+      <span x-show="summary.total===0">Нажмите «Прогнать все».</span>
+      <span x-show="summary.total>0">
+        Билинг: <b x-text="summary.billing.passed"></b>/<b x-text="summary.billing.total"></b> ·
+        ДЗ: <b x-text="summary.homework.passed"></b>/<b x-text="summary.homework.total"></b>
+      </span>
+    </div>
+  </div>
+
+  <h2 class="section-head"><span>Биллинг</span></h2>
+  <div class="card results" style="padding:0;">
+    <template x-for="r in results.billing" :key="r.name">
+      <div class="res" :class="r.ok ? 'ok' : 'bad'">
+        <div class="tag" x-text="r.ok ? 'PASS' : 'FAIL'"></div>
+        <div>
+          <div x-text="r.name"></div>
+          <div class="err" x-show="!r.ok" x-text="r.error"></div>
+        </div>
+      </div>
+    </template>
+    <template x-if="results.billing.length===0">
+      <div class="res"><div class="tag" style="background:transparent">—</div><div class="muted">Не запускался.</div></div>
+    </template>
+  </div>
+
+  <h2 class="section-head"><span>Домашние задания</span></h2>
+  <div class="card results" style="padding:0;">
+    <template x-for="r in results.homework" :key="r.name">
+      <div class="res" :class="r.ok ? 'ok' : 'bad'">
+        <div class="tag" x-text="r.ok ? 'PASS' : 'FAIL'"></div>
+        <div>
+          <div x-text="r.name"></div>
+          <div class="err" x-show="!r.ok" x-text="r.error"></div>
+        </div>
+      </div>
+    </template>
+    <template x-if="results.homework.length===0">
+      <div class="res"><div class="tag" style="background:transparent">—</div><div class="muted">Не запускался.</div></div>
+    </template>
+  </div>
+
+</main>
+
+<script src="assets/js/store.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/billing.js"></script>
+<script src="assets/js/homework.js"></script>
+<script src="assets/js/billing.test.js"></script>
+<script src="assets/js/homework.test.js"></script>
+
+<script>
+function testsApp() {
+  return {
+    results: { billing: [], homework: [] },
+    summary: {
+      total: 0, passed: 0, failed: 0,
+      billing:  { total: 0, passed: 0 },
+      homework: { total: 0, passed: 0 }
+    },
+    init() {},
+    runAll() {
+      this.runOne('billing');
+      this.runOne('homework');
+      this.recalcSummary();
+    },
+    runOne(kind) {
+      const map = {
+        billing:  window.XBillingTests,
+        homework: window.XHomeworkTests
+      };
+      const tests = map[kind];
+      if (!tests) return;
+      this.results[kind] = tests.run();
+      this.recalcSummary();
+    },
+    recalcSummary() {
+      const b = this.results.billing, h = this.results.homework;
+      const bp = b.filter(r => r.ok).length;
+      const hp = h.filter(r => r.ok).length;
+      this.summary = {
+        total: b.length + h.length,
+        passed: bp + hp,
+        failed: (b.length - bp) + (h.length - hp),
+        billing:  { total: b.length, passed: bp },
+        homework: { total: h.length, passed: hp }
+      };
+    }
+  };
+}
+</script>
+</body>
+</html>

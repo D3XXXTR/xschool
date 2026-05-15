@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Вход — Школа ИКС</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="assets/css/tokens.css">
+<link rel="stylesheet" href="assets/css/main.css">
+
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+<style>
+  .auth-page {
+    min-height: 100vh;
+    display: grid; place-items: center;
+    padding: var(--s-6);
+    background:
+      radial-gradient(circle at 30% 20%, rgba(124,58,237,.18), transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(236,72,153,.12), transparent 60%),
+      var(--bg);
+  }
+  .auth-card { width: 100%; max-width: 420px; }
+  .auth-logo {
+    font-family: var(--ff-display); font-weight: 800;
+    font-size: 14px; letter-spacing: .15em;
+    color: var(--a-2); margin-bottom: var(--s-3);
+  }
+  .auth-card h1 { margin-bottom: var(--s-5); font-size: 26px; }
+  .auth-error  { color: var(--red); font-size: var(--fs-sm); margin-top: 8px; }
+  .auth-foot   { margin-top: var(--s-6); font-size: var(--fs-sm); }
+  .auth-foot a { color: var(--muted); }
+  .role-btn   { justify-content: flex-start; padding: 14px 16px; text-align: left; }
+</style>
+</head>
+<body>
+
+<main class="auth-page" x-data="authForm()" x-init="init()">
+  <div class="auth-card card">
+    <div class="auth-logo">ИКС</div>
+    <h1 x-text="title"></h1>
+    <p x-show="hint" class="muted small" style="margin-top:-8px;margin-bottom:16px;" x-text="hint"></p>
+
+    <!-- Шаг 1: телефон -->
+    <template x-if="step === 'phone'">
+      <div class="stack">
+        <div class="field">
+          <label>Телефон</label>
+          <input class="input" type="tel" placeholder="+7 999 111 00 01" x-model="phone" @keyup.enter="sendCode()">
+        </div>
+        <button class="btn btn-primary btn-block" @click="sendCode()">Получить код</button>
+        <p class="muted small">Демо-код: <b>0000</b>. Демо-телефон родителя: <b>+79991110001</b></p>
+      </div>
+    </template>
+
+    <!-- Шаг 2: код -->
+    <template x-if="step === 'code'">
+      <div class="stack">
+        <p class="muted small">Код отправлен на <b x-text="phone"></b></p>
+        <div class="field">
+          <label>Код</label>
+          <input class="input" type="text" maxlength="4" x-model="code" @keyup.enter="verify()">
+        </div>
+        <button class="btn btn-primary btn-block" @click="verify()">Войти</button>
+        <button class="btn btn-ghost btn-block" @click="step='phone'; error=''">Изменить телефон</button>
+      </div>
+    </template>
+
+    <!-- Шаг 3: выбор роли (если коллизия) -->
+    <template x-if="step === 'role'">
+      <div class="stack">
+        <p class="muted small">Войти как:</p>
+        <template x-for="opt in roleOptions" :key="opt.userId">
+          <button class="btn role-btn" @click="chooseRole(opt.userId)">
+            <span x-text="roleLabel(opt.role)"></span> · <span class="muted" x-text="opt.name"></span>
+          </button>
+        </template>
+      </div>
+    </template>
+
+    <p x-show="error" class="auth-error" x-text="error"></p>
+
+    <p class="auth-foot">
+      <a href="index.html">← На главную</a>
+    </p>
+  </div>
+</main>
+
+<script src="assets/js/store.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+function authForm() {
+  return {
+    step: 'phone',
+    phone: '',
+    code: '',
+    error: '',
+    roleOptions: [],
+    expectedRole: null,
+    title: 'Вход в кабинет',
+    hint: '',
+
+    init() {
+      // query: ?role=teacher|parent|student & ?phone=+7...
+      const params = new URLSearchParams(location.search);
+      this.expectedRole = params.get('role') || null;
+
+      if (this.expectedRole === 'teacher') {
+        this.title = 'Вход преподавателя';
+        this.hint  = 'Демо-телефон преподавателя: +79993330001 · код 0000';
+      } else if (this.expectedRole === 'parent') {
+        this.title = 'Вход родителя';
+        this.hint  = 'Демо-телефон родителя: +79991110001 · код 0000';
+      } else if (this.expectedRole === 'student') {
+        this.title = 'Вход ученика';
+        this.hint  = 'Демо-телефон ученика: +79992220001 · код 0000';
+      } else if (this.expectedRole === 'admin') {
+        this.title = 'Вход администратора';
+        this.hint  = 'Демо-телефон директора: +79990000000 · код 0000';
+      } else {
+        this.hint  = 'Демо: родитель +79991110001 · ученик +79992220001 · директор +79990000000 · код 0000';
+      }
+
+      // предзаполнение телефона
+      const phoneFromQuery = params.get('phone');
+      if (phoneFromQuery) {
+        this.phone = window.XAuth.normalizePhone(phoneFromQuery);
+      }
+
+      // если сессия уже есть — сразу в нужный кабинет
+      const s = window.XSchool.getSession();
+      if (s) window.location.href = window.XAuth.redirectFor(s.role);
+    },
+    sendCode() {
+      this.error = '';
+      const r = window.XAuth.requestCode(this.phone);
+      if (!r.ok) {
+        this.error = 'Введите корректный телефон';
+        return;
+      }
+      this.step = 'code';
+    },
+    verify() {
+      this.error = '';
+      const r = window.XAuth.verify(this.phone, this.code);
+      if (!r.ok) {
+        this.error = r.error === 'invalid_code'
+          ? 'Неверный код'
+          : 'Номер не найден. Запишитесь на пробное.';
+        return;
+      }
+      if (r.multipleRoles) {
+        // если ожидаем конкретную роль — отфильтруем варианты
+        let opts = r.options;
+        if (this.expectedRole) {
+          opts = opts.filter(o => o.role === this.expectedRole);
+          if (opts.length === 0) { this.error = this.wrongRoleMsg(); return; }
+        }
+        if (opts.length === 1) {
+          const c = window.XAuth.chooseRole(opts[0].userId);
+          if (c.ok) { window.location.href = c.redirect; return; }
+        }
+        this.roleOptions = opts;
+        this.step = 'role';
+        return;
+      }
+      // если зашли с ?role=X, но роль не совпала — ругаемся и не пускаем
+      if (this.expectedRole && r.role !== this.expectedRole) {
+        window.XSchool.clearSession();
+        this.error = this.wrongRoleMsg();
+        return;
+      }
+      window.location.href = r.redirect;
+    },
+    wrongRoleMsg() {
+      if (this.expectedRole === 'teacher') return 'Этот номер не относится к преподавателям';
+      if (this.expectedRole === 'parent')  return 'Этот номер не относится к родителям';
+      if (this.expectedRole === 'student') return 'Этот номер не относится к ученикам';
+      if (this.expectedRole === 'admin')   return 'Этот номер не относится к администраторам';
+      return 'Роль не совпадает';
+    },
+    chooseRole(userId) {
+      const r = window.XAuth.chooseRole(userId);
+      if (r.ok) window.location.href = r.redirect;
+    },
+    roleLabel(role) {
+      return role === 'parent'  ? 'Родитель'
+           : role === 'student' ? 'Ученик'
+           : role === 'teacher' ? 'Преподаватель'
+           : role === 'admin'   ? 'Директор' : role;
+    }
+  };
+}
+</script>
+</body>
+</html>

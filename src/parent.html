@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Кабинет родителя — Школа ИКС</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="assets/css/tokens.css">
+<link rel="stylesheet" href="assets/css/main.css">
+
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body x-data="parentApp()" x-init="init()">
+
+<header class="top-nav">
+  <div class="container">
+    <a href="index.html" class="brand">ИКС</a>
+    <span class="brand-sub">/ Кабинет родителя</span>
+    <div class="spacer"></div>
+    <span class="muted small" x-text="userName"></span>
+    <button class="btn btn-sm btn-ghost" @click="logout()">Выйти</button>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav class="stack" style="gap:4px;">
+      <a class="sidebar-link" :class="{active: view==='home'}"          href="#home">          <span class="icn">⌂</span> Главная</a>
+      <a class="sidebar-link" :class="{active: view==='children'}"      href="#children">      <span class="icn">👶</span> Дети</a>
+      <a class="sidebar-link" :class="{active: view==='schedule'}"      href="#schedule">      <span class="icn">🗓</span> Расписание</a>
+      <a class="sidebar-link" :class="{active: view==='homework'}"      href="#homework">      <span class="icn">📚</span> ДЗ</a>
+      <a class="sidebar-link" :class="{active: view==='billing'}"       href="#billing">       <span class="icn">💳</span> Оплата</a>
+      <a class="sidebar-link" :class="{active: view==='charges'}"       href="#charges">       <span class="icn">📋</span> История списаний</a>
+      <a class="sidebar-link" :class="{active: view==='payments'}"      href="#payments">      <span class="icn">🧾</span> Платежи</a>
+      <a class="sidebar-link" :class="{active: view==='stats'}"         href="#stats">         <span class="icn">📊</span> Статистика</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+    <!-- ═══════════ Главная ═══════════ -->
+    <section x-show="view==='home'">
+      <div class="page-head">
+        <div>
+          <h1>Здравствуйте<span x-show="userName">, <span x-text="userName"></span></span>!</h1>
+          <p class="muted small">Сводка по детям и пакетам.</p>
+        </div>
+        <div class="row">
+          <span class="badge violet" x-text="'Детей: ' + children.length"></span>
+          <span class="badge green"  x-text="'Пакетов: ' + packages.length"></span>
+        </div>
+      </div>
+
+      <!-- Баннер «Пакет закончился» — самый высокий приоритет -->
+      <template x-for="pk in emptyPackages" :key="'empty-'+pk.id">
+        <div class="inline-alert error" style="margin-bottom: var(--s-3); display:flex; gap:12px; align-items:center;">
+          <span style="font-size:18px;">⛔</span>
+          <div style="flex:1; min-width:0;">
+            <b>Пакет закончился:</b> <span x-text="pk._subjectTitle"></span> · <span x-text="pk._studentName"></span>.
+            Продлите, чтобы не пропускать занятия.
+          </div>
+          <button class="btn btn-sm btn-primary" @click="renewPackage(pk)">Продлить</button>
+        </div>
+      </template>
+
+      <!-- Баннер «Низкий остаток» -->
+      <template x-for="pk in lowPackages" :key="'low-'+pk.id">
+        <div class="inline-alert warn" style="margin-bottom: var(--s-3); display:flex; gap:12px; align-items:center;">
+          <span style="font-size:18px;">⚠</span>
+          <div style="flex:1; min-width:0;">
+            Пакет заканчивается: <b><span x-text="pk._subjectTitle"></span></b> · <span x-text="pk._studentName"></span>.
+            Осталось <b x-text="pk.remaining"></b>
+            <span x-text="fmt.plural(pk.remaining, ['занятие','занятия','занятий'])"></span>.
+          </div>
+          <button class="btn btn-sm" @click="renewPackage(pk)">Продлить</button>
+        </div>
+      </template>
+
+      <!-- Уведомление «Урок завтра» -->
+      <template x-if="tomorrowLesson">
+        <div class="card card-accent" style="margin-bottom:var(--s-5);">
+          <div class="row" style="gap:14px;">
+            <span style="font-size:24px;">🔔</span>
+            <div style="min-width:0;flex:1;">
+              <h3>Урок завтра, <span x-text="tomorrowLesson._time"></span></h3>
+              <p class="muted small" style="margin-top:4px;">
+                <span x-text="tomorrowLesson._subjectTitle"></span> ·
+                <span x-text="tomorrowLesson._ownParticipants.map(p=>p._name).join(', ')"></span> ·
+                преподаватель <span x-text="tomorrowLesson._teacherName"></span>.
+                <br>
+                Чтобы отменить без списания — успейте до
+                <b x-text="fmt.time(tomorrowLesson._cancelDeadline)"></b>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Ближайший урок -->
+      <h2 class="section-head"><span>Ближайший урок</span></h2>
+      <template x-if="nextLesson">
+        <div class="row-card">
+          <div class="lead">
+            <span x-text="fmt.time(nextLesson.startAt)"></span>
+            <span class="small" x-text="fmt.date(nextLesson.startAt)"></span>
+          </div>
+          <div class="body">
+            <h4 x-text="nextLesson._subjectTitle"></h4>
+            <div class="sub">
+              <span x-text="nextLesson._ownParticipants.map(p=>p._name).join(', ')"></span>
+              · <span x-text="nextLesson._teacherName"></span>
+            </div>
+          </div>
+          <div class="meta">
+            <span class="badge" :class="nextLesson._statusInfo.badge"
+                  x-text="nextLesson._statusInfo.label"></span>
+          </div>
+        </div>
+      </template>
+      <template x-if="!nextLesson">
+        <div class="empty">Ближайших уроков нет.</div>
+      </template>
+
+      <!-- Пакеты -->
+      <h2 class="section-head"><span>Пакеты</span><a class="meta" href="#billing">все →</a></h2>
+      <div class="grid-2">
+        <template x-for="pk in packages" :key="pk.id">
+          <div class="package-card">
+            <div class="pk-head">
+              <div>
+                <div class="pk-title" x-text="pk._subjectTitle"></div>
+                <div class="pk-sub" x-text="pk._studentName + ' · ' + (pk.lessonType==='group' ? 'группа' : 'индивидуально')"></div>
+              </div>
+              <div class="pk-num" x-text="pk.remaining + '/' + pk.total"></div>
+            </div>
+            <div class="progress" :class="pk._progressClass.replace('progress','').trim()">
+              <div class="progress-fill" :style="'width:' + pk._progressPct + '%'"></div>
+            </div>
+            <div class="pk-foot">
+              <span x-text="pk.remaining + ' ' + fmt.plural(pk.remaining, ['урок','урока','уроков']) + ' осталось'"></span>
+              <span x-show="pk.remaining <= 2" class="badge yellow">⚠ низкий остаток</span>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Последние списания -->
+      <h2 class="section-head"><span>Последние списания</span><a class="meta" href="#charges">все →</a></h2>
+      <div class="card" style="padding:0;">
+        <template x-for="ch in charges.slice(0,5)" :key="ch.id">
+          <div class="charge-row">
+            <span class="icn" :class="ch._badge==='green' ? 'badge green' : 'badge yellow'"
+                  style="padding:4px 8px;border-radius:6px;" x-text="ch._icon"></span>
+            <div class="reason">
+              <div x-text="'−' + ch.amount + ' урок · ' + ch._studentName"></div>
+              <div class="muted small" x-text="ch.reasonText"></div>
+            </div>
+            <div class="when" x-text="ch._date"></div>
+          </div>
+        </template>
+        <template x-if="charges.length===0">
+          <div class="empty" style="border:0;">Списаний ещё не было.</div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ═══════════ Дети ═══════════ -->
+    <section x-show="view==='children'">
+      <div class="page-head"><h1>Дети</h1></div>
+      <div class="grid-2">
+        <template x-for="c in children" :key="c.id">
+          <div class="card">
+            <h3 x-text="c.name"></h3>
+            <p class="muted small" x-text="c.grade + ' класс · телефон ' + c.phone"></p>
+            <div class="row" style="margin-top:10px; gap:6px; flex-wrap:wrap;">
+              <template x-for="pk in childPackages(c.id)" :key="pk.id">
+                <span class="badge" x-text="pk._subjectTitle + ': ' + pk.remaining + '/' + pk.total"></span>
+              </template>
+            </div>
+          </div>
+        </template>
+        <template x-if="children.length===0">
+          <div class="empty">Пока никого не записано. <a href="index.html">Записать ребёнка</a></div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ═══════════ Расписание ═══════════ -->
+    <section x-show="view==='schedule'">
+      <div class="page-head"><h1>Расписание</h1></div>
+      <div class="stack">
+        <template x-for="l in lessons" :key="l.id">
+          <div class="row-card">
+            <div class="lead">
+              <span x-text="fmt.time(l.startAt)"></span>
+              <span class="small" x-text="fmt.date(l.startAt)"></span>
+            </div>
+            <div class="body">
+              <h4>
+                <template x-if="l.type==='group'"><span class="badge violet" style="margin-right:6px;">ГРУППА</span></template>
+                <span x-text="l._subjectTitle"></span>
+              </h4>
+              <div class="sub">
+                <span x-text="l._ownParticipants.map(p=>p._name).join(', ') || '—'"></span>
+                · <span x-text="l._teacherName"></span>
+              </div>
+              <template x-if="l.type==='group'">
+                <div class="participants">
+                  <template x-for="p in l._ownParticipants" :key="p.studentId">
+                    <div class="participant-row">
+                      <span class="name me" x-text="p._name"></span>
+                      <span class="muted small" x-text="(window.XApp.lessonStatus[p.status] || {}).label || ''"></span>
+                    </div>
+                  </template>
+                  <div x-show="l._otherParticipantsCount > 0" class="participant-row">
+                    <span class="muted small">
+                      Ещё <span x-text="l._otherParticipantsCount"></span>
+                      <span x-text="fmt.plural(l._otherParticipantsCount, ['участник','участника','участников'])"></span>
+                    </span>
+                    <span></span>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <div class="meta">
+              <span class="badge" :class="l._statusInfo.badge" x-text="l._statusInfo.label"></span>
+              <button x-show="canEdit(l)" class="btn btn-sm" @click="openModal(l)">Изменить</button>
+            </div>
+          </div>
+        </template>
+        <template x-if="lessons.length===0">
+          <div class="empty">Уроков пока нет.</div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ═══════════ ДЗ ═══════════ -->
+    <section x-show="view==='homework'">
+      <div class="page-head"><h1>Домашние задания</h1></div>
+      <div class="stack">
+        <template x-for="hw in homeworks" :key="hw.id">
+          <div class="row-card">
+            <div class="lead">
+              <span style="font-size:18px;">📚</span>
+            </div>
+            <div class="body">
+              <h4 x-text="hw.title"></h4>
+              <div class="sub">
+                <span x-text="hw._subjectTitle"></span> · <span x-text="hw._studentName"></span> ·
+                <span class="badge" :class="hw._deadlineInfo.className" x-text="hw._deadlineInfo.text"></span>
+              </div>
+            </div>
+            <div class="meta">
+              <span class="badge" :class="hw._statusInfo.badge" x-text="hw._statusInfo.label"></span>
+            </div>
+          </div>
+        </template>
+        <template x-if="homeworks.length===0">
+          <div class="empty">ДЗ ещё нет.</div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ═══════════ Оплата ═══════════ -->
+    <section x-show="view==='billing'">
+      <div class="page-head">
+        <h1>Оплата и пакеты</h1>
+        <div class="row" style="gap:6px;">
+          <button class="pill" :class="{active: billingTab==='active'}" @click="billingTab='active'">Активные</button>
+          <button class="pill" :class="{active: billingTab==='buy'}"    @click="billingTab='buy'; resetWizard()">Купить пакет</button>
+        </div>
+      </div>
+
+      <!-- ─── Активные пакеты ─── -->
+      <div x-show="billingTab==='active'" class="grid-2">
+        <template x-for="pk in packages" :key="pk.id">
+          <div class="package-card">
+            <div class="pk-head">
+              <div>
+                <div class="pk-title" x-text="pk._subjectTitle"></div>
+                <div class="pk-sub" x-text="pk._studentName + ' · ' + (pk.lessonType==='group' ? 'группа' : 'индивидуально')"></div>
+              </div>
+              <div class="pk-num" x-text="pk.remaining + '/' + pk.total"></div>
+            </div>
+            <div class="progress" :class="pk._progressClass.replace('progress','').trim()">
+              <div class="progress-fill" :style="'width:' + pk._progressPct + '%'"></div>
+            </div>
+            <div class="pk-foot">
+              <span x-text="'Оплачено: ' + fmt.money(pk.totalPaid)"></span>
+              <span x-text="'Цена занятия: ' + fmt.money(pk.pricePerLesson)"></span>
+            </div>
+            <div class="row" style="margin-top: var(--s-3); justify-content: flex-end;">
+              <button class="btn btn-sm" @click="renewPackage(pk)">Продлить</button>
+            </div>
+          </div>
+        </template>
+        <template x-if="packages.length===0">
+          <div class="empty">Активных пакетов нет. Откройте «Купить пакет», чтобы оформить первый.</div>
+        </template>
+      </div>
+
+      <!-- ─── Мастер покупки ─── -->
+      <div x-show="billingTab==='buy'" class="card stack" style="gap: var(--s-4);">
+        <!-- Шаги-индикатор -->
+        <div class="row" style="gap:8px; flex-wrap:wrap;">
+          <template x-for="(label, i) in wizardSteps" :key="i">
+            <span class="badge"
+                  :class="wizard.step === (i+1) ? 'violet' : (wizard.step > (i+1) ? 'green' : '')"
+                  style="font-weight:600;"
+                  x-text="(i+1) + '. ' + label"></span>
+          </template>
+        </div>
+
+        <!-- Шаг 1: ребёнок -->
+        <div x-show="wizard.step===1" class="stack">
+          <h3>Кому покупаем пакет?</h3>
+          <template x-if="children.length===0">
+            <div class="empty">У вас нет записанных детей.</div>
+          </template>
+          <div class="pill-radio">
+            <template x-for="c in children" :key="c.id">
+              <button class="pill" :class="{active: wizard.studentId === c.id}"
+                      @click="wizard.studentId = c.id" x-text="c.name + ' · ' + c.grade + ' класс'"></button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Шаг 2: предмет -->
+        <div x-show="wizard.step===2" class="stack">
+          <h3>Какой предмет?</h3>
+          <div class="pill-radio">
+            <template x-for="s in availableSubjects" :key="s.id">
+              <button class="pill" :class="{active: wizard.subjectId === s.id}"
+                      @click="wizard.subjectId = s.id" x-text="s.title"></button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Шаг 3: тип занятий -->
+        <div x-show="wizard.step===3" class="stack">
+          <h3>Тип занятий</h3>
+          <div class="pill-radio">
+            <button class="pill" :class="{active: wizard.lessonType==='individual'}"
+                    :disabled="!wizardIndividualAvailable"
+                    @click="wizardIndividualAvailable && (wizard.lessonType='individual')">Индивидуально</button>
+            <button class="pill" :class="{active: wizard.lessonType==='group'}"
+                    :disabled="!wizardGroupAvailable"
+                    @click="wizardGroupAvailable && (wizard.lessonType='group')">В группе</button>
+          </div>
+          <p class="muted small">
+            Цена занятия:
+            <b x-text="fmt.money(wizardPrice())"></b>
+          </p>
+        </div>
+
+        <!-- Шаг 4: размер пакета -->
+        <div x-show="wizard.step===4" class="stack">
+          <h3>Сколько занятий?</h3>
+          <div class="grid-3">
+            <template x-for="size in wizardSizes" :key="size">
+              <button class="card"
+                      :class="{'card-accent': wizard.size === size}"
+                      @click="wizard.size = size"
+                      style="text-align:left; padding: var(--s-4); cursor:pointer;">
+                <div style="font-family: var(--ff-display); font-size: 24px; font-weight: 800;" x-text="size"></div>
+                <div class="muted small" x-text="fmt.plural(size, ['занятие','занятия','занятий'])"></div>
+                <div style="margin-top: 8px;" x-text="fmt.money(window.XPackages.totalFor(wizard.subjectId, wizard.lessonType, size))"></div>
+                <div class="badge green" x-show="window.XPackages.discountFor(wizard.subjectId, size) > 0"
+                     x-text="'−' + Math.round(window.XPackages.discountFor(wizard.subjectId, size)*100) + '%'"></div>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Шаг 5: подтверждение -->
+        <div x-show="wizard.step===5" class="stack">
+          <h3>Подтверждение покупки</h3>
+          <div class="card" style="padding: var(--s-4); background: var(--bg-3);">
+            <div class="row" style="justify-content:space-between;"><span class="muted">Ребёнок</span> <b x-text="wizardChildName"></b></div>
+            <div class="row" style="justify-content:space-between;"><span class="muted">Предмет</span> <b x-text="wizardSubjectTitle"></b></div>
+            <div class="row" style="justify-content:space-between;"><span class="muted">Тип занятий</span> <b x-text="wizard.lessonType==='group' ? 'В группе' : 'Индивидуально'"></b></div>
+            <div class="row" style="justify-content:space-between;"><span class="muted">Размер пакета</span> <b><span x-text="wizard.size"></span> занятий</b></div>
+            <div class="row" style="justify-content:space-between;"><span class="muted">Цена занятия</span> <span x-text="fmt.money(window.XPackages.priceFor(wizard.subjectId, wizard.lessonType))"></span></div>
+            <div class="row" style="justify-content:space-between;" x-show="window.XPackages.discountFor(wizard.subjectId, wizard.size) > 0">
+              <span class="muted">Скидка</span>
+              <span class="badge green" x-text="'−' + Math.round(window.XPackages.discountFor(wizard.subjectId, wizard.size)*100) + '%'"></span>
+            </div>
+            <hr style="border:0; border-top:1px solid var(--border); margin: 8px 0;">
+            <div class="row" style="justify-content:space-between; font-size: 18px;">
+              <b>К оплате</b>
+              <b x-text="fmt.money(window.XPackages.totalFor(wizard.subjectId, wizard.lessonType, wizard.size))"></b>
+            </div>
+          </div>
+          <p class="muted xsmall">Демо-оплата: статус paid, способ demo. Реальный платёж не проходит.</p>
+        </div>
+
+        <p x-show="wizard.error"  class="inline-alert error" x-text="wizard.error"></p>
+        <p x-show="wizard.result" class="inline-alert info"  x-text="wizard.result"></p>
+
+        <div class="row" style="justify-content: space-between; margin-top: var(--s-3);">
+          <button class="btn btn-ghost" @click="prevStep()" :disabled="wizard.step===1 || wizardDone">Назад</button>
+          <div class="row" style="gap: 10px;">
+            <button class="btn btn-ghost" @click="resetWizard()">Сбросить</button>
+            <button class="btn btn-primary" x-show="wizard.step < 5" @click="nextStep()" :disabled="!canProceed()">Далее</button>
+            <button class="btn btn-primary" x-show="wizard.step === 5 && !wizardDone" @click="payNow()">Оплатить</button>
+            <button class="btn btn-primary" x-show="wizardDone" @click="resetWizard(); billingTab='active'">Готово</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ Платежи ═══════════ -->
+    <section x-show="view==='payments'">
+      <div class="page-head"><h1>История платежей</h1></div>
+      <div class="card" style="padding:0;">
+        <template x-for="p in payments" :key="p.id">
+          <div class="charge-row">
+            <span class="icn" style="padding:4px 8px;border-radius:6px;"
+                  :class="p._statusBadge ? 'badge ' + p._statusBadge : 'badge'">+</span>
+            <div class="reason">
+              <div>
+                <b x-text="p._subjectTitle || '—'"></b>
+                <span class="muted" x-show="p._studentName"> · <span x-text="p._studentName"></span></span>
+                <span class="muted" x-show="p._lessonType"> · <span x-text="p._lessonType==='group' ? 'группа' : 'индивидуально'"></span></span>
+              </div>
+              <div class="muted small">
+                <span x-text="p._size + ' ' + fmt.plural(p._size || 0, ['занятие','занятия','занятий'])"></span>
+                · <span x-text="fmt.money(p.amount)"></span>
+                · способ: <span x-text="p.method || 'demo'"></span>
+              </div>
+            </div>
+            <div class="meta" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+              <span class="badge" :class="p._statusBadge" x-text="p._statusLabel"></span>
+              <span class="when" x-text="p._date"></span>
+            </div>
+          </div>
+        </template>
+        <template x-if="payments.length===0">
+          <div class="empty" style="border:0;">Платежей пока нет.</div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ═══════════ История списаний ═══════════ -->
+    <section x-show="view==='charges'">
+      <div class="page-head"><h1>История списаний</h1></div>
+      <div class="card" style="padding:0;">
+        <template x-for="ch in charges" :key="ch.id">
+          <div class="charge-row">
+            <span class="icn" :class="ch._badge==='green' ? 'badge green' : 'badge yellow'"
+                  style="padding:4px 8px;border-radius:6px;" x-text="ch._icon"></span>
+            <div class="reason">
+              <div x-text="'−' + ch.amount + ' урок · ' + ch._studentName"></div>
+              <div class="muted small" x-text="ch.reasonText"></div>
+            </div>
+            <div class="when" x-text="ch._date"></div>
+          </div>
+        </template>
+        <template x-if="charges.length===0">
+          <div class="empty" style="border:0;">Списаний ещё не было.</div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ═══════════ Статистика ═══════════ -->
+    <section x-show="view==='stats'">
+      <div class="page-head"><h1>Статистика</h1></div>
+
+      <h2 class="section-head"><span>Посещаемость</span></h2>
+      <div class="grid-2">
+        <template x-for="c in stats.children" :key="c.id">
+          <div class="card">
+            <h3 x-text="c.name"></h3>
+            <p class="muted small" x-text="c.done + ' проведено · ' + c.missed + ' пропусков · всего учтено: ' + c.total"></p>
+            <div class="progress" style="margin-top: 10px;"
+                 :class="c.attendance < 60 ? 'danger' : (c.attendance < 85 ? 'warn' : '')">
+              <div class="progress-fill" :style="'width:' + c.attendance + '%'"></div>
+            </div>
+            <div class="muted small" style="margin-top: 6px;"
+                 x-text="'Посещаемость: ' + c.attendance + '%'"></div>
+          </div>
+        </template>
+        <template x-if="stats.children.length===0">
+          <div class="empty">Нет данных по детям.</div>
+        </template>
+      </div>
+
+      <h2 class="section-head"><span>Домашние задания</span></h2>
+      <div class="grid-3">
+        <div class="card center">
+          <div style="font-family: var(--ff-display); font-size: 32px; font-weight: 800;" x-text="stats.hw.checked"></div>
+          <div class="muted small">проверено</div>
+        </div>
+        <div class="card center">
+          <div style="font-family: var(--ff-display); font-size: 32px; font-weight: 800;" x-text="stats.hw.submitted"></div>
+          <div class="muted small">на проверке</div>
+        </div>
+        <div class="card center">
+          <div style="font-family: var(--ff-display); font-size: 32px; font-weight: 800;" x-text="stats.hw.needsRev"></div>
+          <div class="muted small">на доработке</div>
+        </div>
+      </div>
+
+      <h2 class="section-head"><span>Пакеты</span></h2>
+      <div class="card">
+        <div class="row" style="justify-content: space-between;">
+          <span class="muted small">Всего занятий куплено</span>
+          <b x-text="stats.pk.total"></b>
+        </div>
+        <div class="row" style="justify-content: space-between;">
+          <span class="muted small">Использовано</span>
+          <b x-text="stats.pk.used"></b>
+        </div>
+        <div class="row" style="justify-content: space-between;">
+          <span class="muted small">Осталось</span>
+          <b x-text="stats.pk.remaining"></b>
+        </div>
+        <div class="progress" style="margin-top: 10px;">
+          <div class="progress-fill" :style="'width:' + stats.pk.usedPct + '%'"></div>
+        </div>
+      </div>
+    </section>
+
+
+  </main>
+</div>
+
+<!-- ═══════════ Модалка: Отменить / Перенести ═══════════ -->
+<div class="modal-overlay" x-show="modal.open" x-cloak @click.self="closeModal()">
+  <div class="modal" x-show="modal.open" @click.stop>
+    <h3>Изменить урок</h3>
+    <p class="muted small" x-show="modal.lesson">
+      <span x-text="modal.lesson?._subjectTitle"></span> ·
+      <span x-text="modal.lesson?._date + ', ' + modal.lesson?._time"></span> ·
+      преподаватель <span x-text="modal.lesson?._teacherName"></span>
+    </p>
+
+    <!-- Если в группе несколько своих детей — выбираем кого касается -->
+    <div class="field" x-show="modal.lesson && modal.lesson._ownParticipants.length > 1" style="margin-top:var(--s-4);">
+      <label>Кого касается изменение</label>
+      <div class="pill-radio">
+        <template x-for="p in (modal.lesson?._ownParticipants || [])" :key="p.studentId">
+          <button class="pill" :class="{active: modal.studentId === p.studentId}" @click="modal.studentId = p.studentId" x-text="p._name"></button>
+        </template>
+      </div>
+    </div>
+
+    <!-- 8h hint -->
+    <div class="inline-alert" :class="modal.inTime ? 'info' : 'warn'" style="margin-top:var(--s-4);" x-show="modal.lesson">
+      <template x-if="modal.inTime">
+        <span>До дедлайна отмены без списания: ещё
+          <b x-text="modal.deadlineLabel"></b>.</span>
+      </template>
+      <template x-if="!modal.inTime">
+        <span>До урока меньше 8 часов — отмена со стороны родителя
+          <b>будет с списанием</b> по правилу.
+          <span x-show="modal.deadlinePassed">Дедлайн отмены был
+            <b x-text="modal.deadlineLabel"></b>.</span>
+        </span>
+      </template>
+    </div>
+
+    <!-- Действие -->
+    <div class="field" style="margin-top:var(--s-4);">
+      <label>Действие</label>
+      <div class="pill-radio">
+        <button class="pill" :class="{active: modal.action==='cancel'}"
+                @click="modal.action='cancel'">Отменить</button>
+        <button class="pill" :class="{active: modal.action==='reschedule'}"
+                @click="modal.action='reschedule'">Перенести</button>
+      </div>
+    </div>
+
+    <!-- Поля переноса -->
+    <div x-show="modal.action==='reschedule'" class="grid-2" style="margin-top:var(--s-3);">
+      <div class="field">
+        <label>Новая дата</label>
+        <input type="date" class="input" x-model="modal.newDate">
+      </div>
+      <div class="field">
+        <label>Новое время</label>
+        <input type="time" class="input" x-model="modal.newTime">
+      </div>
+    </div>
+
+    <div class="field" style="margin-top:var(--s-3);">
+      <label>Причина (опц.)</label>
+      <textarea class="textarea" rows="2" x-model="modal.comment" placeholder="Например: ребёнок заболел"></textarea>
+    </div>
+
+    <p x-show="modal.error" class="inline-alert error" style="margin-top:var(--s-3);" x-text="modal.error"></p>
+    <p x-show="modal.result" class="inline-alert info" style="margin-top:var(--s-3);" x-text="modal.result"></p>
+
+    <div class="modal-foot">
+      <button class="btn btn-ghost" @click="closeModal()">Закрыть</button>
+      <button class="btn btn-primary" @click="submit()" :disabled="!modal.action || !!modal.result"
+              x-text="modal.action==='reschedule' ? 'Перенести' : (modal.action==='cancel' ? 'Подтвердить отмену' : 'Подтвердить')"></button>
+    </div>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <div class="bottom-nav-i">
+    <a href="#home"      :class="{active: view==='home'}"     x-data><span class="icn">⌂</span><span>Главная</span></a>
+    <a href="#schedule"  :class="{active: view==='schedule'}" x-data><span class="icn">🗓</span><span>Расписание</span></a>
+    <a href="#homework"  :class="{active: view==='homework'}" x-data><span class="icn">📚</span><span>ДЗ</span></a>
+    <a href="#billing"   :class="{active: view==='billing'}"  x-data><span class="icn">💳</span><span>Оплата</span></a>
+    <a href="#stats"     :class="{active: view==='stats'}"    x-data><span class="icn">📊</span><span>Статистика</span></a>
+  </div>
+</nav>
+
+<script src="assets/js/store.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/billing.js"></script>
+<script src="assets/js/homework.js"></script>
+<script src="assets/js/packages.js"></script>
+<script>
+const PARENT_VIEWS = ['home','children','schedule','homework','billing','charges','payments','stats'];
+
+function parentApp() {
+  return {
+    /* state */
+    view: 'home',
+    session: null,
+    userName: '',
+    children: [],
+    childrenIds: [],
+    packages: [],     // hydrated
+    lessons: [],      // hydrated
+    homeworks: [],    // hydrated
+    charges: [],      // hydrated
+    payments: [],     // hydrated
+    nextLesson: null,
+    tomorrowLesson: null,
+
+    /* билинг — вкладки и мастер */
+    billingTab: 'active',
+    wizardSteps: ['Ребёнок','Предмет','Тип','Пакет','Подтверждение'],
+    wizard: {
+      step: 1,
+      studentId: '',
+      subjectId: '',
+      lessonType: 'individual',
+      size: 8,
+      error: '',
+      result: ''
+    },
+    wizardDone: false,
+
+    /* геттеры мастера и баннеров */
+    get availableSubjects() {
+      // Только активные услуги; если services не настроены — fallback на subjects
+      const Store = window.XSchool;
+      const services = (typeof Store.activeServices === 'function')
+        ? Store.activeServices() : [];
+      if (services.length) {
+        return services.map(s => ({ id: s.id, title: s.title, mode: s.category, _service: s }));
+      }
+      return Store.state.subjects;
+    },
+    /** Доступные размеры пакетов для текущего выбранного предмета */
+    get wizardSizes() {
+      if (!this.wizard.subjectId) return [4,8,16];
+      return window.XPackages.sizesFor(this.wizard.subjectId);
+    },
+    /** Цена занятия для выбранного предмета и типа */
+    wizardPrice(lt) {
+      if (!this.wizard.subjectId) return 0;
+      return window.XPackages.priceFor(this.wizard.subjectId, lt || this.wizard.lessonType);
+    },
+    /** Доступен ли групповой формат для текущего предмета */
+    get wizardGroupAvailable() {
+      return this.wizardPrice('group') > 0;
+    },
+    get wizardIndividualAvailable() {
+      return this.wizardPrice('individual') > 0;
+    },
+    get wizardChildName() {
+      const c = this.children.find(x => x.id === this.wizard.studentId);
+      return c ? c.name : '';
+    },
+    get wizardSubjectTitle() {
+      const s = this.availableSubjects.find(x => x.id === this.wizard.subjectId);
+      return s ? s.title : '';
+    },
+    get lowPackages()   { return this.packages.filter(p => p.remaining > 0 && p.remaining <= 2); },
+    get emptyPackages() { return this.packages.filter(p => p.remaining === 0); },
+
+    /* ── Статистика ─── */
+    get stats() {
+      const Store = window.XSchool;
+      // посещаемость по детям: по participants всех уроков, статусы done/missed
+      const lessonsByChild = {};
+      for (const c of this.children) {
+        lessonsByChild[c.id] = { id: c.id, name: c.name, done: 0, missed: 0, total: 0 };
+      }
+      for (const l of Store.state.lessons) {
+        for (const p of (l.participants || [])) {
+          const acc = lessonsByChild[p.studentId];
+          if (!acc) continue;
+          if (p.status === 'done')   { acc.done++;   acc.total++; }
+          if (p.status === 'missed') { acc.missed++; acc.total++; }
+        }
+      }
+      const childrenStats = Object.values(lessonsByChild).map(c => ({
+        ...c, attendance: c.total ? Math.round(c.done * 100 / c.total) : 0
+      }));
+
+      // ДЗ
+      const hw = {
+        submitted: this.homeworks.filter(h => h.status === 'submitted').length,
+        checked:   this.homeworks.filter(h => h.status === 'checked').length,
+        needsRev:  this.homeworks.filter(h => h.status === 'needs_revision').length
+      };
+
+      // Пакеты
+      const pkTotal = this.packages.reduce((s, p) => s + (p.total || 0), 0);
+      const pkUsed  = this.packages.reduce((s, p) => s + (p.used  || 0), 0);
+      const pkRem   = pkTotal - pkUsed;
+      const pk = {
+        total: pkTotal, used: pkUsed, remaining: pkRem,
+        usedPct: pkTotal ? Math.round(pkUsed * 100 / pkTotal) : 0
+      };
+
+      return { children: childrenStats, hw, pk };
+    },
+
+    /* модалка отмены/переноса */
+    modal: {
+      open: false,
+      lesson: null,         // hydrated
+      studentId: null,      // кого касается изменение
+      action: '',           // 'cancel' | 'reschedule'
+      newDate: '',
+      newTime: '',
+      comment: '',
+      error: '',
+      result: '',
+      inTime: true,
+      deadlinePassed: false,
+      deadlineLabel: ''
+    },
+
+    /* helpers */
+    get fmt() { return window.XApp.fmt; },
+    childPackages(studentId) { return this.packages.filter(p => p.studentId === studentId); },
+    canEdit(l) {
+      // редактируем только до начала и только planned/tomorrow
+      const inFuture = new Date(l.startAt).getTime() > Date.now();
+      return inFuture && (l.status === 'planned' || l.status === 'tomorrow');
+    },
+
+    init() {
+      const session = window.XApp.bootGuard('parent');
+      if (!session) return;
+      this.session = session;
+
+      this.reload();
+
+      if (this.children[0] && !this.wizard.studentId) {
+        this.wizard.studentId = this.children[0].id;
+      }
+
+      window.XSchool.subscribe(() => this.reload());
+
+      window.XApp.watchHash(() => {
+        this.view = window.XApp.parseHashView(PARENT_VIEWS, 'home');
+      });
+    },
+
+    /** Полная перезагрузка данных текущего родителя из стора. */
+    reload() {
+      const session = this.session;
+      if (!session) return;
+      const Store = window.XSchool;
+      const App   = window.XApp;
+      const user  = Store.getUser(session.userId);
+      this.userName = user ? user.name : '';
+
+      this.children    = Store.childrenOfParent(session.userId);
+      this.childrenIds = this.children.map(c => c.id);
+
+      this.packages = this.children
+        .flatMap(c => Store.packagesOfStudent(c.id))
+        .map(p => App.hydratePackage(p, Store));
+
+      this.lessons = this.children
+        .flatMap(c => Store.lessonsOfStudent(c.id))
+        .filter((l, i, arr) => arr.findIndex(x => x.id === l.id) === i)
+        .map(l => App.hydrateLesson(l, Store, this.childrenIds))
+        .sort((a, b) => new Date(a.startAt) - new Date(b.startAt));
+
+      const now = Date.now();
+      this.nextLesson = this.lessons.find(l => new Date(l.startAt).getTime() >= now) || null;
+      // Урок «завтра» — производное от startAt, не от хранимого статуса
+      this.tomorrowLesson = this.lessons.find(l =>
+        l._isTomorrow && (l.status === 'planned' || l.status === 'tomorrow')) || null;
+
+      this.homeworks = this.children
+        .flatMap(c => Store.state.homeworks.filter(h => h.studentId === c.id))
+        .map(h => App.hydrateHomework(h, Store));
+
+      this.charges = this.children
+        .flatMap(c => Store.chargesOfStudent(c.id))
+        .map(c => App.hydrateCharge(c, Store))
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      this.payments = Store.state.payments
+        .filter(p => p.parentId === session.userId)
+        .map(p => App.hydratePayment(p, Store))
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    },
+
+    /* ── Модалка отмены/переноса ──────────────────────── */
+    openModal(lesson) {
+      this.modal.open = true;
+      this.modal.lesson = lesson;
+      this.modal.studentId = lesson._ownParticipants[0]?.studentId || null;
+      this.modal.action = 'cancel';
+      // новые дата/время — по умолчанию +7 дней, тот же час
+      const start = new Date(lesson.startAt);
+      const newD = new Date(start); newD.setDate(newD.getDate() + 7);
+      this.modal.newDate = newD.toISOString().slice(0, 10);
+      this.modal.newTime = start.toTimeString().slice(0, 5);
+      this.modal.comment = '';
+      this.modal.error = '';
+      this.modal.result = '';
+
+      const dl = window.XApp.cancelDeadline(lesson.startAt);
+      this.modal.inTime = Date.now() <= dl.getTime();
+      this.modal.deadlinePassed = !this.modal.inTime;
+      this.modal.deadlineLabel = window.XApp.fmt.dateLong(dl) + ', ' + window.XApp.fmt.time(dl);
+    },
+    closeModal() {
+      this.modal.open = false;
+      this.modal.lesson = null;
+    },
+    submit() {
+      const m = this.modal;
+      m.error = '';
+      if (!m.action) { m.error = 'Выберите действие'; return; }
+      if (!m.studentId) { m.error = 'Выберите ребёнка'; return; }
+      const lesson = m.lesson;
+      const Store = window.XSchool;
+
+      try {
+        if (m.action === 'cancel') {
+          const r = window.XBilling.applyLessonStatus(lesson.id, {
+            studentId: m.studentId,
+            status: 'cancelled',
+            actor: 'parent',
+            noticeAt: new Date().toISOString(),
+            comment: m.comment
+          });
+          if (!r.ok) { m.error = errorMessage(r.error); return; }
+          m.result = r.charge
+            ? 'Урок отменён. По правилу 8 часов произошло списание.'
+            : 'Урок отменён. Списания не было — отмена пришла вовремя.';
+        }
+        else if (m.action === 'reschedule') {
+          if (!m.newDate || !m.newTime) { m.error = 'Укажите новую дату и время'; return; }
+          // 1) создать новый урок (теми же предметом/преподавателем/участниками)
+          const newStart = new Date(m.newDate + 'T' + m.newTime + ':00');
+          if (isNaN(newStart.getTime())) { m.error = 'Некорректная дата/время'; return; }
+
+          Store.addLesson({
+            subjectId: lesson.subjectId,
+            teacherId: lesson.teacherId,
+            type: lesson.type,
+            participants: lesson.participants.map(p => ({ studentId: p.studentId, status: 'planned' })),
+            startAt: newStart.toISOString(),
+            durationMin: lesson.durationMin || 60,
+            topic: lesson.topic || ''
+          });
+          // 2) старый — отменить от имени родителя; биллинг применит правило 8 часов
+          const r = window.XBilling.applyLessonStatus(lesson.id, {
+            studentId: m.studentId,
+            status: 'cancelled',
+            actor: 'parent',
+            noticeAt: new Date().toISOString(),
+            comment: m.comment ? `Перенос: ${m.comment}` : 'Перенос'
+          });
+          // r может быть already_charged — в этом случае старый уже был обработан, ок
+          m.result = r.ok && !r.charge
+            ? 'Урок перенесён. Списания не было — отмена пришла вовремя.'
+            : 'Урок перенесён. По правилу 8 часов произошло списание за старую дату.';
+        }
+      } catch (e) {
+        m.error = 'Ошибка: ' + e.message;
+      }
+    },
+
+    /* ── Мастер покупки пакета ────────────────────────── */
+    canProceed() {
+      const w = this.wizard;
+      if (w.step === 1) return !!w.studentId;
+      if (w.step === 2) return !!w.subjectId;
+      if (w.step === 3) return !!w.lessonType;
+      if (w.step === 4) return [4,8,16].includes(Number(w.size));
+      return true;
+    },
+    nextStep() {
+      this.wizard.error = '';
+      if (!this.canProceed()) {
+        this.wizard.error = 'Выберите вариант, чтобы продолжить.';
+        return;
+      }
+      // Если перешли на шаг 4 (размеры) и текущий размер недоступен —
+      // выберем первый из доступных
+      if (this.wizard.step === 3) {
+        const sizes = this.wizardSizes;
+        if (!sizes.includes(Number(this.wizard.size))) {
+          this.wizard.size = sizes[0] || 8;
+        }
+        // Если текущий тип занятий стал недоступен — переключим
+        if (this.wizard.lessonType === 'group' && !this.wizardGroupAvailable && this.wizardIndividualAvailable) {
+          this.wizard.lessonType = 'individual';
+        }
+        if (this.wizard.lessonType === 'individual' && !this.wizardIndividualAvailable && this.wizardGroupAvailable) {
+          this.wizard.lessonType = 'group';
+        }
+      }
+      if (this.wizard.step < 5) this.wizard.step++;
+    },
+    prevStep() {
+      this.wizard.error = '';
+      if (this.wizard.step > 1) this.wizard.step--;
+    },
+    payNow() {
+      const w = this.wizard;
+      w.error = '';
+      const r = window.XPackages.purchasePackage({
+        parentId:   this.session.userId,
+        studentId:  w.studentId,
+        subjectId:  w.subjectId,
+        lessonType: w.lessonType,
+        size:       Number(w.size)
+      });
+      if (!r.ok) {
+        w.error = r.error === 'service_inactive'
+            ? 'Эта услуга временно недоступна.'
+          : r.error === 'lessonType_unavailable'
+            ? 'Этот тип занятий недоступен для выбранной услуги.'
+          : 'Не удалось оформить пакет: ' + (r.error || 'unknown');
+        return;
+      }
+      this.wizardDone = true;
+      const sizeLabel = window.XApp.fmt.plural(r.package.total, ['занятие','занятия','занятий']);
+      w.result = `Пакет активирован! +${r.package.total} ${sizeLabel}. Оплачено ${window.XApp.fmt.money(r.payment.amount)}.`;
+    },
+    resetWizard() {
+      this.wizard = {
+        step: 1,
+        studentId: this.children[0]?.id || '',
+        subjectId: '',
+        lessonType: 'individual',
+        size: 8,
+        error: '',
+        result: ''
+      };
+      this.wizardDone = false;
+    },
+    /** Открыть мастер с предзаполненными параметрами по существующему пакету. */
+    renewPackage(pk) {
+      this.billingTab = 'buy';
+      this.wizard = {
+        step: 4,
+        studentId: pk.studentId,
+        subjectId: pk.subjectId,
+        lessonType: pk.lessonType || 'individual',
+        size: pk.total >= 16 ? 16 : (pk.total >= 8 ? 8 : 4),
+        error: '',
+        result: ''
+      };
+      this.wizardDone = false;
+      this.view = 'billing';
+      if (location.hash !== '#billing') location.hash = '#billing';
+    },
+
+    logout() { window.XAuth.logout(); }
+  };
+}
+
+function errorMessage(code) {
+  if (code === 'already_charged')   return 'По этому уроку уже было списание.';
+  if (code === 'lesson_not_found')  return 'Урок не найден.';
+  if (code === 'participant_not_found') return 'Этот ребёнок не участник урока.';
+  return code || 'Не удалось выполнить действие';
+}
+</script>
+</body>
+</html>

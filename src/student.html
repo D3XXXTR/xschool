@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Кабинет ученика — Школа ИКС</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="assets/css/tokens.css">
+<link rel="stylesheet" href="assets/css/main.css">
+
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body x-data="studentApp()" x-init="init()">
+
+<header class="top-nav">
+  <div class="container">
+    <a href="index.html" class="brand">ИКС</a>
+    <span class="brand-sub">/ Кабинет ученика</span>
+    <div class="spacer"></div>
+    <span class="muted small" x-text="userName"></span>
+    <button class="btn btn-sm btn-ghost" @click="logout()">Выйти</button>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav class="stack" style="gap:4px;">
+      <a class="sidebar-link" :class="{active: view==='today'}"         href="#today">         <span class="icn">⌂</span> Сегодня</a>
+      <a class="sidebar-link" :class="{active: view==='schedule'}"      href="#schedule">      <span class="icn">🗓</span> Расписание</a>
+      <a class="sidebar-link" :class="{active: view==='homework'}"      href="#homework">      <span class="icn">📚</span> Мои ДЗ</a>
+      <a class="sidebar-link" :class="{active: view==='packages'}"      href="#packages">      <span class="icn">📦</span> Пакеты</a>
+      <a class="sidebar-link" :class="{active: view==='progress'}"      href="#progress">      <span class="icn">📈</span> Прогресс</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+    <!-- ═══════════ Сегодня ═══════════ -->
+    <section x-show="view==='today'">
+      <div class="page-head">
+        <div>
+          <h1>Привет<span x-show="userName">, <span x-text="userName"></span></span>!</h1>
+          <p class="muted small">Что у тебя сегодня и в ближайшие дни.</p>
+        </div>
+        <span class="badge blue" x-text="'Уроков впереди: ' + futureLessons.length"></span>
+      </div>
+
+      <h2 class="section-head"><span>Ближайший урок</span></h2>
+      <template x-if="nextLesson">
+        <div class="row-card">
+          <div class="lead">
+            <span x-text="fmt.time(nextLesson.startAt)"></span>
+            <span class="small" x-text="fmt.date(nextLesson.startAt)"></span>
+          </div>
+          <div class="body">
+            <h4 x-text="nextLesson._subjectTitle"></h4>
+            <div class="sub" x-text="nextLesson._teacherName"></div>
+          </div>
+          <div class="meta">
+            <span class="badge" :class="nextLesson._statusInfo.badge" x-text="nextLesson._statusInfo.label"></span>
+          </div>
+        </div>
+      </template>
+      <template x-if="!nextLesson">
+        <div class="empty">Ближайших уроков нет.</div>
+      </template>
+
+      <h2 class="section-head"><span>ДЗ на сегодня</span></h2>
+      <div class="stack">
+        <template x-for="hw in todayHomeworks" :key="hw.id">
+          <div class="row-card">
+            <div class="lead"><span style="font-size:18px;">📚</span></div>
+            <div class="body">
+              <h4 x-text="hw.title"></h4>
+              <div class="sub">
+                <span x-text="hw._subjectTitle"></span> ·
+                <span class="badge" :class="hw._deadlineInfo.className" x-text="hw._deadlineInfo.text"></span>
+              </div>
+            </div>
+            <div class="meta">
+              <span class="badge" :class="hw._statusInfo.badge" x-text="hw._statusInfo.label"></span>
+              <button class="btn btn-sm" @click="openHwModal(hw)" x-text="primaryActionLabel(hw)"></button>
+            </div>
+          </div>
+        </template>
+        <template x-if="todayHomeworks.length===0">
+          <div class="empty">На сегодня ДЗ нет 🙂</div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ═══════════ Расписание ═══════════ -->
+    <section x-show="view==='schedule'">
+      <div class="page-head"><h1>Расписание</h1></div>
+      <div class="stack">
+        <template x-for="l in lessons" :key="l.id">
+          <div class="row-card">
+            <div class="lead">
+              <span x-text="fmt.time(l.startAt)"></span>
+              <span class="small" x-text="fmt.date(l.startAt)"></span>
+            </div>
+            <div class="body">
+              <h4>
+                <template x-if="l.type==='group'"><span class="badge violet" style="margin-right:6px;">ГРУППА</span></template>
+                <span x-text="l._subjectTitle"></span>
+              </h4>
+              <div class="sub" x-text="l._teacherName"></div>
+              <template x-if="l.type==='group'">
+                <div class="participants">
+                  <!-- собственная строка: только сам ученик -->
+                  <template x-for="p in l._ownParticipants" :key="p.studentId">
+                    <div class="participant-row">
+                      <span class="name me" x-text="p._name + ' (вы)'"></span>
+                      <span class="muted small" x-text="(window.XApp.lessonStatus[p.status] || {}).label || ''"></span>
+                    </div>
+                  </template>
+                  <!-- остальные — без имён -->
+                  <div x-show="l._otherParticipantsCount > 0" class="participant-row">
+                    <span class="muted small">
+                      Ещё <span x-text="l._otherParticipantsCount"></span>
+                      <span x-text="fmt.plural(l._otherParticipantsCount, ['ученик','ученика','учеников'])"></span>
+                    </span>
+                    <span></span>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <div class="meta">
+              <span class="badge" :class="l._statusInfo.badge" x-text="l._statusInfo.label"></span>
+            </div>
+          </div>
+        </template>
+        <template x-if="lessons.length===0">
+          <div class="empty">Уроков пока нет.</div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ═══════════ Мои ДЗ ═══════════ -->
+    <section x-show="view==='homework'">
+      <div class="page-head">
+        <h1>Мои ДЗ</h1>
+        <div class="row" style="gap:6px;">
+          <button class="pill" :class="{active: hwFilter==='all'}"     @click="hwFilter='all'">Все</button>
+          <button class="pill" :class="{active: hwFilter==='active'}"  @click="hwFilter='active'">Активные</button>
+          <button class="pill" :class="{active: hwFilter==='checked'}" @click="hwFilter='checked'">Готово</button>
+        </div>
+      </div>
+      <div class="stack">
+        <template x-for="hw in filteredHomeworks" :key="hw.id">
+          <div class="row-card">
+            <div class="lead"><span style="font-size:18px;">📚</span></div>
+            <div class="body">
+              <h4 x-text="hw.title"></h4>
+              <div class="sub">
+                <span x-text="hw._subjectTitle"></span> ·
+                <span class="badge" :class="hw._deadlineInfo.className" x-text="hw._deadlineInfo.text"></span>
+              </div>
+              <div x-show="hw.status==='checked' && hw.score" class="muted small" style="margin-top:4px;">
+                Оценка: <b x-text="hw.score"></b>/5
+                <span x-show="hw.teacherComment"> · «<span x-text="hw.teacherComment"></span>»</span>
+              </div>
+              <div x-show="hw.status==='needs_revision' && hw.teacherComment" class="muted small" style="margin-top:4px;">
+                Преподаватель: «<span x-text="hw.teacherComment"></span>»
+              </div>
+            </div>
+            <div class="meta">
+              <span class="badge" :class="hw._statusInfo.badge" x-text="hw._statusInfo.label"></span>
+              <button class="btn btn-sm" @click="openHwModal(hw)" x-text="primaryActionLabel(hw)"></button>
+            </div>
+          </div>
+        </template>
+        <template x-if="filteredHomeworks.length===0">
+          <div class="empty">В этом разделе ничего нет.</div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ═══════════ Пакеты (только просмотр, без сумм) ═══════════ -->
+    <section x-show="view==='packages'">
+      <div class="page-head"><h1>Мои пакеты</h1></div>
+      <div class="grid-2">
+        <template x-for="pk in packages" :key="pk.id">
+          <div class="package-card">
+            <div class="pk-head">
+              <div>
+                <div class="pk-title" x-text="pk._subjectTitle"></div>
+                <div class="pk-sub" x-text="pk.lessonType==='group' ? 'группа' : 'индивидуально'"></div>
+              </div>
+              <div class="pk-num" x-text="pk.remaining + '/' + pk.total"></div>
+            </div>
+            <div class="progress" :class="pk._progressClass.replace('progress','').trim()">
+              <div class="progress-fill" :style="'width:' + pk._progressPct + '%'"></div>
+            </div>
+            <div class="pk-foot">
+              <span x-text="pk.remaining + ' ' + fmt.plural(pk.remaining, ['урок','урока','уроков']) + ' осталось'"></span>
+            </div>
+          </div>
+        </template>
+        <template x-if="packages.length===0">
+          <div class="empty">Пакетов пока нет.</div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ═══════════ Прогресс ═══════════ -->
+    <section x-show="view==='progress'">
+      <div class="page-head"><h1>Прогресс</h1></div>
+
+      <h2 class="section-head"><span>Посещаемость</span></h2>
+      <div class="card">
+        <p class="muted small" x-text="stats.lessonsDone + ' проведено · ' + stats.lessonsMissed + ' пропусков · всего учтено: ' + stats.lessonsTotal"></p>
+        <div class="progress" style="margin-top: 10px;"
+             :class="stats.attendance < 60 ? 'danger' : (stats.attendance < 85 ? 'warn' : '')">
+          <div class="progress-fill" :style="'width:' + stats.attendance + '%'"></div>
+        </div>
+        <div class="muted small" style="margin-top: 6px;" x-text="'Посещаемость: ' + stats.attendance + '%'"></div>
+      </div>
+
+      <h2 class="section-head"><span>Домашние задания</span></h2>
+      <div class="grid-3">
+        <div class="card center">
+          <div style="font-family: var(--ff-display); font-size: 32px; font-weight: 800;" x-text="stats.hwChecked"></div>
+          <div class="muted small">проверено</div>
+        </div>
+        <div class="card center">
+          <div style="font-family: var(--ff-display); font-size: 32px; font-weight: 800;" x-text="stats.hwSubmitted"></div>
+          <div class="muted small">на проверке</div>
+        </div>
+        <div class="card center">
+          <div style="font-family: var(--ff-display); font-size: 32px; font-weight: 800;" x-text="stats.hwActive"></div>
+          <div class="muted small">в работе</div>
+        </div>
+      </div>
+
+      <h2 class="section-head"><span>Пакеты</span></h2>
+      <div class="grid-2">
+        <template x-for="pk in packages" :key="pk.id">
+          <div class="package-card">
+            <div class="pk-head">
+              <div>
+                <div class="pk-title" x-text="pk._subjectTitle"></div>
+                <div class="pk-sub" x-text="pk.lessonType==='group' ? 'группа' : 'индивидуально'"></div>
+              </div>
+              <div class="pk-num" x-text="pk.remaining + '/' + pk.total"></div>
+            </div>
+            <div class="progress" :class="pk._progressClass.replace('progress','').trim()">
+              <div class="progress-fill" :style="'width:' + pk._progressPct + '%'"></div>
+            </div>
+          </div>
+        </template>
+        <template x-if="packages.length===0">
+          <div class="empty">Пакетов пока нет.</div>
+        </template>
+      </div>
+    </section>
+
+
+  </main>
+</div>
+
+<!-- ═══════════ Модалка: ДЗ ═══════════ -->
+<div class="modal-overlay" x-show="hwModal.open" x-cloak @click.self="closeHwModal()">
+  <div class="modal" x-show="hwModal.open" @click.stop>
+    <h3 x-text="hwModal.hw?.title || 'ДЗ'"></h3>
+    <p class="muted small" x-show="hwModal.hw">
+      <span x-text="hwModal.hw?._subjectTitle"></span> ·
+      <span class="badge" :class="hwModal.hw?._deadlineInfo.className"
+            x-text="hwModal.hw?._deadlineInfo.text"></span> ·
+      <span class="badge" :class="hwModal.hw?._statusInfo.badge" x-text="hwModal.hw?._statusInfo.label"></span>
+    </p>
+
+    <div class="field" style="margin-top:var(--s-4);">
+      <label>Задание</label>
+      <div class="card" style="padding:12px; background:var(--bg-3);" x-text="hwModal.hw?.description || '—'"></div>
+    </div>
+
+    <!-- Комментарий преподавателя — если есть и относится к ходу работы -->
+    <div class="inline-alert info" x-show="hwModal.hw?.teacherComment && hwModal.hw?.status === 'needs_revision'" style="margin-top:var(--s-3);">
+      <b>Нужно доработать:</b>
+      <span x-text="hwModal.hw?.teacherComment"></span>
+    </div>
+    <div class="inline-alert info" x-show="hwModal.hw?.status === 'checked'" style="margin-top:var(--s-3);">
+      <b>ДЗ принято</b><span x-show="hwModal.hw?.score">, оценка <b x-text="hwModal.hw?.score"></b>/5</span>.
+      <span x-show="hwModal.hw?.teacherComment"> «<span x-text="hwModal.hw?.teacherComment"></span>»</span>
+    </div>
+
+    <!-- Форма ответа: только если статус позволяет редактировать -->
+    <div x-show="canEditAnswer()" class="stack" style="margin-top:var(--s-3);">
+      <div class="field">
+        <label>Твой ответ</label>
+        <textarea class="textarea" rows="5" x-model="hwModal.studentAnswer"
+                  placeholder="Можно написать решение текстом..."></textarea>
+      </div>
+
+      <div class="field">
+        <label>Файлы (до 5 · jpg/png/pdf · 10 МБ/файл · 50 МБ всего)</label>
+
+        <!-- Drag-and-drop зона -->
+        <div class="drop-zone"
+             :class="{dragging: isDragging}"
+             @dragenter.prevent="isDragging = true"
+             @dragover.prevent="isDragging = true"
+             @dragleave.prevent="isDragging = false"
+             @drop.prevent="onFilesDropped($event)">
+          <p>Перетащите файлы сюда или
+            <label class="link" for="hw-file-input">выберите вручную</label>.
+          </p>
+          <input id="hw-file-input" type="file" class="hidden" multiple
+                 accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                 @change="onFilesPicked($event)">
+        </div>
+
+        <div x-show="hwModal.files.length > 0" class="stack-sm" style="margin-top:8px;">
+          <template x-for="(f, i) in hwModal.files" :key="i">
+            <div class="file-row">
+              <span class="ico" x-text="window.XApp.fileIcon(f)"></span>
+              <span class="name" x-text="f.name"></span>
+              <span class="meta">
+                <span x-text="formatSize(f.size)"></span>
+                <button class="btn btn-sm btn-ghost" style="margin-left: 6px;" @click="removeFile(i)">Удалить</button>
+              </span>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Если только просмотр — показываем что было сдано -->
+    <div x-show="!canEditAnswer() && (hwModal.hw?.studentAnswer || (hwModal.hw?.files && hwModal.hw.files.length > 0))"
+         class="field" style="margin-top:var(--s-3);">
+      <label>Твой ответ</label>
+      <div class="card" style="padding:12px; background:var(--bg-3);" x-text="hwModal.hw?.studentAnswer || '(только файлы)'"></div>
+      <div x-show="hwModal.hw?.files && hwModal.hw.files.length > 0" class="stack-sm" style="margin-top:6px;">
+        <template x-for="(f, i) in hwModal.hw?.files || []" :key="i">
+          <div class="file-row">
+            <span class="ico" x-text="window.XApp.fileIcon(f)"></span>
+            <span class="name" x-text="f.name"></span>
+            <span class="meta" x-text="formatSize(f.size)"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <p x-show="hwModal.error"  class="inline-alert error" style="margin-top:var(--s-3);" x-text="hwModal.error"></p>
+    <p x-show="hwModal.result" class="inline-alert info"  style="margin-top:var(--s-3);" x-text="hwModal.result"></p>
+
+    <div class="modal-foot">
+      <button class="btn btn-ghost" @click="closeHwModal()">Закрыть</button>
+      <!-- При первом открытии assigned автоматически переходит в in_progress
+           (см. openHwModal → XHomework.openHomework). Поэтому отдельной
+           кнопки «Начать выполнение» больше не нужно. -->
+      <button class="btn btn-primary"
+              x-show="canSubmit()"
+              @click="submitHw()"
+              x-text="hwModal.hw?.status === 'needs_revision' ? 'Сдать повторно' : 'Сдать на проверку'"></button>
+    </div>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <div class="bottom-nav-i">
+    <a href="#today"     :class="{active: view==='today'}"     x-data><span class="icn">⌂</span><span>Сегодня</span></a>
+    <a href="#schedule"  :class="{active: view==='schedule'}"  x-data><span class="icn">🗓</span><span>Расписание</span></a>
+    <a href="#homework"  :class="{active: view==='homework'}"  x-data><span class="icn">📚</span><span>ДЗ</span></a>
+    <a href="#packages"  :class="{active: view==='packages'}"  x-data><span class="icn">📦</span><span>Пакеты</span></a>
+    <a href="#progress"  :class="{active: view==='progress'}"  x-data><span class="icn">📈</span><span>Прогресс</span></a>
+  </div>
+</nav>
+
+<script src="assets/js/store.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/billing.js"></script>
+<script src="assets/js/homework.js"></script>
+<script>
+const STUDENT_VIEWS = ['today','schedule','homework','packages','progress'];
+
+function studentApp() {
+  return {
+    view: 'today',
+    session: null,
+    userId: '',
+    userName: '',
+    lessons: [],
+    futureLessons: [],
+    nextLesson: null,
+    homeworks: [],
+    todayHomeworks: [],
+    packages: [],
+
+    /* фильтр для раздела «Мои ДЗ» */
+    hwFilter: 'all',
+
+    /* drag-and-drop */
+    isDragging: false,
+
+    /* модалка ДЗ */
+    hwModal: {
+      open: false,
+      hw: null,
+      studentAnswer: '',
+      files: [],          // массив {name, size, type}
+      error: '',
+      result: ''
+    },
+
+    get fmt() { return window.XApp.fmt; },
+    get filteredHomeworks() {
+      if (this.hwFilter === 'active') {
+        return this.homeworks.filter(h => h.status !== 'checked');
+      }
+      if (this.hwFilter === 'checked') {
+        return this.homeworks.filter(h => h.status === 'checked');
+      }
+      return this.homeworks;
+    },
+    get stats() {
+      let done = 0, missed = 0;
+      for (const l of this.lessons) {
+        const me = (l._participants || []).find(p => p.studentId === this.userId);
+        if (!me) continue;
+        if (me.status === 'done')   done++;
+        if (me.status === 'missed') missed++;
+      }
+      const total = done + missed;
+      return {
+        lessonsDone: done,
+        lessonsMissed: missed,
+        lessonsTotal: total,
+        attendance: total ? Math.round(done * 100 / total) : 0,
+        hwSubmitted: this.homeworks.filter(h => h.status === 'submitted').length,
+        hwChecked:   this.homeworks.filter(h => h.status === 'checked').length,
+        hwActive:    this.homeworks.filter(h =>
+          ['assigned','in_progress','needs_revision'].includes(h.status)).length
+      };
+    },
+
+    init() {
+      const session = window.XApp.bootGuard('student');
+      if (!session) return;
+      this.session = session;
+      this.userId = session.userId;
+
+      this.reload();
+
+      window.XSchool.subscribe(() => this.reload());
+
+      window.XApp.watchHash(() => {
+        this.view = window.XApp.parseHashView(STUDENT_VIEWS, 'today');
+      });
+    },
+
+    /** Полная перезагрузка данных текущего ученика. */
+    reload() {
+      const session = this.session;
+      if (!session) return;
+      const Store = window.XSchool;
+      const App   = window.XApp;
+      const user  = Store.getUser(session.userId);
+      this.userName = user ? user.name : '';
+
+      this.lessons = Store.lessonsOfStudent(session.userId)
+        .map(l => App.hydrateLesson(l, Store, [session.userId]))
+        .sort((a,b) => new Date(a.startAt) - new Date(b.startAt));
+
+      const now = Date.now();
+      this.futureLessons = this.lessons.filter(l => new Date(l.startAt).getTime() >= now);
+      this.nextLesson    = this.futureLessons[0] || null;
+
+      this.homeworks = Store.state.homeworks
+        .filter(h => h.studentId === session.userId)
+        .map(h => App.hydrateHomework(h, Store))
+        .sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+
+      const tomorrowEnd = new Date();
+      tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
+      tomorrowEnd.setHours(23,59,59,999);
+      this.todayHomeworks = this.homeworks.filter(h =>
+        new Date(h.deadline) <= tomorrowEnd && h.status !== 'checked');
+
+      this.packages = Store.packagesOfStudent(session.userId)
+        .map(p => App.hydratePackage(p, Store));
+
+
+      // если открыта модалка — обновим её данные из стора (после реактивного апдейта)
+      if (this.hwModal.open && this.hwModal.hw) {
+        const fresh = Store.getHomework(this.hwModal.hw.id);
+        if (fresh) this.hwModal.hw = window.XApp.hydrateHomework(fresh, Store);
+      }
+    },
+
+    /* ── Действия с ДЗ ────────────────────────────────── */
+    primaryActionLabel(hw) {
+      if (hw.status === 'assigned')       return 'Открыть';
+      if (hw.status === 'in_progress')    return 'Сдать';
+      if (hw.status === 'submitted')      return 'Открыть';
+      if (hw.status === 'needs_revision') return 'Доработать';
+      if (hw.status === 'checked')        return 'Открыть';
+      return 'Открыть';
+    },
+    canEditAnswer() {
+      const s = this.hwModal.hw && this.hwModal.hw.status;
+      return s === 'assigned' || s === 'in_progress' || s === 'needs_revision';
+    },
+    canSubmit() {
+      const s = this.hwModal.hw && this.hwModal.hw.status;
+      return s === 'assigned' || s === 'in_progress' || s === 'needs_revision';
+    },
+
+    openHwModal(hw) {
+      // Авто-переход: при первом открытии ассигнутого ДЗ ученик
+      // получает статус in_progress (через XHomework.openHomework).
+      let current = hw;
+      if (hw.status === 'assigned') {
+        const fresh = window.XHomework.openHomework(hw.id);
+        if (fresh) {
+          current = window.XApp.hydrateHomework(fresh, window.XSchool);
+        }
+      }
+      this.hwModal.open = true;
+      this.hwModal.hw = current;
+      this.hwModal.studentAnswer = current.studentAnswer || '';
+      this.hwModal.files = (current.files || []).slice();
+      this.hwModal.error = '';
+      this.hwModal.result = '';
+      this.isDragging = false;
+    },
+    closeHwModal() {
+      this.hwModal.open = false;
+      this.hwModal.hw = null;
+      this.hwModal.files = [];
+    },
+
+    onFilesPicked(ev) {
+      this._appendFiles(Array.from(ev.target.files || []));
+      ev.target.value = '';
+    },
+    onFilesDropped(ev) {
+      this.isDragging = false;
+      const dt = ev.dataTransfer;
+      if (!dt || !dt.files || !dt.files.length) return;
+      this._appendFiles(Array.from(dt.files));
+    },
+    _appendFiles(list) {
+      if (!list || list.length === 0) return;
+      const next = this.hwModal.files.slice();
+      for (const f of list) {
+        next.push({ name: f.name, size: f.size, type: f.type });
+      }
+      const v = window.XHomework.validateFiles(next);
+      if (!v.ok) {
+        this.hwModal.error = this.fileError(v);
+        return;
+      }
+      this.hwModal.error = '';
+      this.hwModal.files = next;
+    },
+    removeFile(i) {
+      this.hwModal.files = this.hwModal.files.filter((_, idx) => idx !== i);
+      this.hwModal.error = '';
+    },
+    formatSize(n) {
+      if (!n) return '—';
+      if (n < 1024) return n + ' Б';
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' КБ';
+      return (n / 1024 / 1024).toFixed(1) + ' МБ';
+    },
+    fileError(v) {
+      if (v.error === 'too_many_files')   return 'Можно прикрепить не больше 5 файлов.';
+      if (v.error === 'invalid_file_type')return 'Допустимы только jpg, png, pdf.';
+      if (v.error === 'file_too_large')   return 'Файл больше 10 МБ.';
+      if (v.error === 'total_too_large')  return 'Общий размер файлов больше 50 МБ.';
+      return 'Ошибка валидации файлов: ' + v.error;
+    },
+
+    // startHw удалён: автопереход assigned → in_progress теперь делается
+    // в openHwModal через XHomework.openHomework.
+    submitHw() {
+      const hw = this.hwModal.hw; if (!hw) return;
+
+      // Правило сдачи: нужен текстовый ответ ИЛИ хотя бы один файл.
+      const studentAnswer = String(this.hwModal.studentAnswer || '').trim();
+      // Детач от Alpine reactive Proxy — иначе после JSON.stringify в localStorage
+      // могут быть неконсистентные перезаписи на повторных рендерах.
+      const files = (this.hwModal.files || []).map(f => ({
+        name: String(f.name || ''),
+        size: Number(f.size || 0),
+        type: String(f.type || '')
+      }));
+
+      if (!studentAnswer && files.length === 0) {
+        this.hwModal.error = 'Добавь текстовый ответ или файл.';
+        return;
+      }
+
+      const r = window.XHomework.transitionHomework(hw.id, 'submitted', {
+        studentAnswer,
+        files
+      });
+      if (!r.ok) { this.hwModal.error = this.tError(r); return; }
+      this.hwModal.error = '';
+      this.hwModal.result = 'ДЗ отправлено на проверку. Преподаватель получит уведомление.';
+    },
+    tError(r) {
+      if (r.error === 'invalid_transition') return 'В этом статусе действие недоступно.';
+      if (r.error === 'too_many_files' || r.error === 'invalid_file_type'
+          || r.error === 'file_too_large' || r.error === 'total_too_large') return this.fileError(r);
+      return 'Не удалось: ' + (r.error || 'unknown');
+    },
+
+
+    logout() { window.XAuth.logout(); }
+  };
+}
+</script>
+</body>
+</html>

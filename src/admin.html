@@ -1,0 +1,1974 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Админ-панель — Школа ИКС</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="assets/css/tokens.css">
+<link rel="stylesheet" href="assets/css/main.css">
+
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+<style>
+  /* Универсальная таблица для админки */
+  .tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+  .tbl th, .tbl td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; }
+  .tbl th { color: var(--muted); font-weight: 600; font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .04em; }
+  .tbl tbody tr:hover { background: var(--card-2); }
+  .tbl .actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .tbl .num { font-variant-numeric: tabular-nums; }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--s-3); }
+  .kpi { padding: var(--s-4); background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); }
+  .kpi .lbl { font-size: var(--fs-xs); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .kpi .val { font-family: var(--ff-display); font-weight: 800; font-size: 28px; margin-top: 4px; }
+  .kpi.warn .val  { color: var(--yellow); }
+  .kpi.danger .val { color: var(--red); }
+  .kpi.ok .val    { color: var(--green-2); }
+
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: var(--s-4); }
+  .toolbar .input { max-width: 320px; }
+  .toolbar .spacer { flex: 1; }
+
+  /* Tab-bar внутри крупного раздела (#people, #finance, ...) */
+  .tabs-row {
+    margin-bottom: var(--s-4);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tabs-row .pill-radio { flex-wrap: nowrap; min-width: max-content; }
+  .tabs-row::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body x-data="adminApp()" x-init="init()">
+
+<header class="top-nav">
+  <div class="container">
+    <a href="index.html" class="brand">ИКС</a>
+    <span class="brand-sub">/ Админ-панель</span>
+    <div class="spacer"></div>
+    <span class="muted small" x-text="userName"></span>
+    <button class="btn btn-sm btn-ghost" @click="logout()">Выйти</button>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav class="stack" style="gap:4px;">
+      <a class="sidebar-link" :class="{active: view==='home'}"     href="#home">     <span class="icn">🏠</span> Дашборд</a>
+      <a class="sidebar-link" :class="{active: view==='people'}"   href="#people">
+        <span class="icn">👥</span> Люди
+        <span x-show="newLeadsCount>0" class="badge violet"
+              style="margin-left:auto;font-size:10px;padding:2px 6px;" x-text="newLeadsCount"></span>
+      </a>
+      <a class="sidebar-link" :class="{active: view==='finance'}"  href="#finance">
+        <span class="icn">💰</span> Финансы
+        <span x-show="debtsCount>0" class="badge red"
+              style="margin-left:auto;font-size:10px;padding:2px 6px;" x-text="debtsCount"></span>
+      </a>
+      <a class="sidebar-link" :class="{active: view==='learning'}" href="#learning"> <span class="icn">📚</span> Обучение</a>
+      <a class="sidebar-link" :class="{active: view==='settings'}" href="#settings"> <span class="icn">⚙️</span> Настройки</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+    <!-- ═══════════ Главная ═══════════ -->
+    <section x-show="view==='home'">
+      <div class="page-head">
+        <div>
+          <h1>Привет, <span x-text="userName"></span>!</h1>
+          <p class="muted small">Сводка по школе. Реактивно.</p>
+        </div>
+        <div class="row" style="gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-sm btn-primary" @click="openAddStudent()">+ Ученик</button>
+          <button class="btn btn-sm" @click="openAddTeacher()">+ Преподаватель</button>
+          <button class="btn btn-sm" @click="openAddPayment()">+ Оплата</button>
+          <button class="btn btn-sm" @click="openAddLesson()">+ Урок</button>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi"><div class="lbl">Ученики</div><div class="val" x-text="kpi.students"></div></div>
+        <div class="kpi" :class="newLeadsCount>0?'warn':''"><div class="lbl">Заявки</div><div class="val" x-text="newLeadsCount"></div></div>
+        <div class="kpi"><div class="lbl">Уроков сегодня</div><div class="val" x-text="kpi.lessonsToday"></div></div>
+        <div class="kpi" :class="kpi.hwToReview>0?'warn':''"><div class="lbl">ДЗ к проверке</div><div class="val" x-text="kpi.hwToReview"></div></div>
+        <div class="kpi"><div class="lbl">Доход за месяц</div><div class="val" x-text="fmt.money(kpi.paymentsRecent)"></div></div>
+        <div class="kpi warn"><div class="lbl">Ждём оплаты</div><div class="val" x-text="fmt.money(finStats.pendingAmount)"></div></div>
+        <div class="kpi" :class="finStats.overdueAmount>0?'danger':''"><div class="lbl">Просрочено</div><div class="val" x-text="fmt.money(finStats.overdueAmount)"></div></div>
+        <div class="kpi" :class="kpi.lowPackages>0?'danger':''"><div class="lbl">Пакеты заканчиваются</div><div class="val" x-text="kpi.lowPackages"></div></div>
+      </div>
+
+      <!-- Требуют внимания: единый блок свёрнутых проблем -->
+      <h2 class="section-head"><span>Требуют внимания</span><a class="meta" href="#finance">подробнее →</a></h2>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Финансы</h3>
+          <p class="muted small" style="margin-top:4px;">
+            Просроченных оплат: <b x-text="finStats.overdueCount"></b><br>
+            Ожидающих оплат: <b x-text="finStats.pendingCount"></b><br>
+            Долг по занятиям: <b x-text="finStats.outOfPackageCount"></b>
+          </p>
+          <div class="row" style="margin-top:10px;gap:6px;flex-wrap:wrap;">
+            <a class="btn btn-sm" href="#debts">К задолженностям</a>
+            <a class="btn btn-sm" href="#payments">Все оплаты</a>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Пакеты</h3>
+          <p class="muted small" style="margin-top:4px;">
+            Закончились (=0): <b x-text="emptyPackagesCount"></b><br>
+            Низкий остаток (≤2): <b x-text="kpi.lowPackages"></b>
+          </p>
+          <div class="row" style="margin-top:10px;gap:6px;flex-wrap:wrap;">
+            <a class="btn btn-sm" href="#packages">Все пакеты</a>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="section-head"><span>Последние заявки</span><a class="meta" href="#leads">все →</a></h2>
+      <div class="card tbl-wrap" style="padding:0;">
+        <table class="tbl">
+          <thead><tr><th>Имя</th><th>Телефон</th><th>Режим</th><th>Источник</th><th>Статус</th><th>Дата</th></tr></thead>
+          <tbody>
+            <template x-for="l in recentLeads" :key="l.id">
+              <tr>
+                <td x-text="l.name"></td>
+                <td x-text="l.phone"></td>
+                <td x-text="l.mode || '—'"></td>
+                <td x-text="l.source || '—'"></td>
+                <td><span class="badge" :class="leadBadge(l.status)" x-text="leadLabel(l.status)"></span></td>
+                <td class="muted small" x-text="fmt.date(l.createdAt)"></td>
+              </tr>
+            </template>
+            <tr x-show="recentLeads.length===0"><td colspan="6" class="muted center" style="padding:18px;">Заявок пока нет.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 class="section-head"><span>Ближайшие уроки</span><a class="meta" href="#schedule">все →</a></h2>
+      <div class="card tbl-wrap" style="padding:0;">
+        <table class="tbl">
+          <thead><tr><th>Дата</th><th>Время</th><th>Предмет</th><th>Тип</th><th>Преподаватель</th><th>Участники</th></tr></thead>
+          <tbody>
+            <template x-for="l in upcomingLessons" :key="l.id">
+              <tr>
+                <td class="muted small" x-text="fmt.date(l.startAt)"></td>
+                <td x-text="fmt.time(l.startAt)"></td>
+                <td x-text="l._subjectTitle"></td>
+                <td><span class="badge" :class="l.type==='group'?'violet':''" x-text="l.type==='group'?'группа':'индив.'"></span></td>
+                <td x-text="l._teacherName"></td>
+                <td class="muted small" x-text="(l._participants||[]).map(p=>p._name).join(', ')"></td>
+              </tr>
+            </template>
+            <tr x-show="upcomingLessons.length===0"><td colspan="6" class="muted center" style="padding:18px;">Уроков нет.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 class="section-head"><span>Пакеты с низким остатком</span><a class="meta" href="#packages">все →</a></h2>
+      <div class="card tbl-wrap" style="padding:0;">
+        <table class="tbl">
+          <thead><tr><th>Ученик</th><th>Предмет</th><th class="num">Остаток</th><th class="num">Всего</th><th>Тип</th></tr></thead>
+          <tbody>
+            <template x-for="p in lowPackages" :key="p.id">
+              <tr>
+                <td x-text="p._studentName"></td>
+                <td x-text="p._subjectTitle"></td>
+                <td class="num"><b :style="p.remaining===0?'color:var(--red)':(p.remaining<=2?'color:var(--yellow)':'')" x-text="p.remaining"></b></td>
+                <td class="num" x-text="p.total"></td>
+                <td x-text="p.lessonType"></td>
+              </tr>
+            </template>
+            <tr x-show="lowPackages.length===0"><td colspan="5" class="muted center" style="padding:18px;">Все пакеты в норме.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!--                      ЛЮДИ                         -->
+    <!-- ════════════════════════════════════════════════ -->
+    <div x-show="view==='people'">
+      <div class="page-head">
+        <h1>Люди</h1>
+        <div class="row" style="gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-sm" @click="openAddStudent()">+ Ученик</button>
+          <button class="btn btn-sm" @click="openAddParent()">+ Родитель</button>
+          <button class="btn btn-sm" @click="openAddTeacher()">+ Преподаватель</button>
+          <button class="btn btn-sm" @click="openAddAssignment()">+ Назначение</button>
+        </div>
+      </div>
+      <div class="tabs-row">
+        <div class="pill-radio">
+          <button class="pill" :class="{active:peopleTab==='students'}"    @click="peopleTab='students'">Ученики</button>
+          <button class="pill" :class="{active:peopleTab==='parents'}"     @click="peopleTab='parents'">Родители</button>
+          <button class="pill" :class="{active:peopleTab==='teachers'}"    @click="peopleTab='teachers'">Преподаватели</button>
+          <button class="pill" :class="{active:peopleTab==='assignments'}" @click="peopleTab='assignments'">Назначения</button>
+          <button class="pill" :class="{active:peopleTab==='leads'}"       @click="peopleTab='leads'">
+            Заявки
+            <span x-show="newLeadsCount>0" class="badge violet" style="margin-left:6px;font-size:10px;padding:2px 6px;" x-text="newLeadsCount"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ Заявки ═══════════ -->
+    <section x-show="is('leads')">
+      <div class="page-head"><h1>Заявки с лендинга</h1></div>
+      <div class="toolbar">
+        <input class="input" placeholder="Поиск по имени, телефону, предмету" x-model="leadSearch">
+        <div class="pill-radio">
+          <button class="pill" :class="{active:leadFilter==='all'}"        @click="leadFilter='all'">Все</button>
+          <button class="pill" :class="{active:leadFilter==='new'}"        @click="leadFilter='new'">Новые</button>
+          <button class="pill" :class="{active:leadFilter==='in_progress'}" @click="leadFilter='in_progress'">В работе</button>
+          <button class="pill" :class="{active:leadFilter==='booked'}"     @click="leadFilter='booked'">Записан</button>
+          <button class="pill" :class="{active:leadFilter==='rejected'}"   @click="leadFilter='rejected'">Отказ</button>
+        </div>
+      </div>
+      <div class="card tbl-wrap" style="padding:0;">
+        <table class="tbl">
+          <thead><tr><th>Имя</th><th>Телефон</th><th>Режим</th><th>Предмет</th><th>Источник</th><th>Статус</th><th>Дата</th><th></th></tr></thead>
+          <tbody>
+            <template x-for="l in filteredLeads" :key="l.id">
+              <tr>
+                <td x-text="l.name"></td>
+                <td x-text="l.phone"></td>
+                <td x-text="l.mode || '—'"></td>
+                <td x-text="l.subject || '—'"></td>
+                <td x-text="l.source || '—'"></td>
+                <td><span class="badge" :class="leadBadge(l.status)" x-text="leadLabel(l.status)"></span></td>
+                <td class="muted small" x-text="fmt.date(l.createdAt)"></td>
+                <td class="actions">
+                  <button class="btn btn-sm" @click="openLeadModal(l)">Открыть</button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="filteredLeads.length===0"><td colspan="8" class="muted center" style="padding:18px;">Ничего не найдено.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══════════ Ученики ═══════════ -->
+    <section x-show="is('students')">
+      <div class="page-head">
+        <h1>Ученики</h1>
+        <button class="btn btn-primary" @click="openAddStudent()">+ Добавить ученика</button>
+      </div>
+      <div class="toolbar">
+        <input class="input" placeholder="Поиск по имени, телефону, классу" x-model="studentSearch">
+      </div>
+      <div class="card tbl-wrap" style="padding:0;">
+        <table class="tbl">
+          <thead><tr><th>Имя</th><th>Класс</th><th>Телефон</th><th>Родитель</th><th class="num">Уроков</th><th class="num">Пакетов</th><th></th></tr></thead>
+          <tbody>
+            <template x-for="s in filteredStudents" :key="s.id">
+              <tr>
+                <td x-text="s.name"></td>
+                <td x-text="s.grade ?? '—'"></td>
+                <td x-text="s.phone || '—'"></td>
+                <td x-text="parentName(s) || '—'"></td>
+                <td class="num" x-text="lessonCount(s.id)"></td>
+                <td class="num" x-text="packageCount(s.id)"></td>
+                <td class="actions">
+                  <button class="btn btn-sm" @click="openEditStudent(s)">✎</button>
+                  <button class="btn btn-sm" @click="openAssignFor('student', s.id)">Назначить</button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="filteredStudents.length===0"><td colspan="7" class="muted center" style="padding:18px;">Ничего не найдено.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══════════ Родители ═══════════ -->
+    <section x-show="is('parents')">
+      <div class="page-head">
+        <h1>Родители</h1>
+        <button class="btn btn-primary" @click="openAddParent()">+ Добавить родителя</button>
+      </div>
+      <div class="card tbl-wrap" style="padding:0;">
+        <table class="tbl">
+          <thead><tr><th>Имя</th><th>Телефон</th><th>Дети</th><th class="num">Платежей</th><th></th></tr></thead>
+          <tbody>
+            <template x-for="p in parents" :key="p.id">
+              <tr>
+                <td x-text="p.name"></td>
+                <td x-text="p.phone"></td>
+                <td class="muted small" x-text="childrenList(p.id) || '—'"></td>
+                <td class="num" x-text="paymentCount(p.id)"></td>
+                <td class="actions">
+                  <button class="btn btn-sm" @click="openEditParent(p)">✎</button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="parents.length===0"><td colspan="5" class="muted center" style="padding:18px;">Родителей нет.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══════════ Преподаватели ═══════════ -->
+    <section x-show="is('teachers')">
+      <div class="page-head">
+        <h1>Преподаватели</h1>
+        <button class="btn btn-primary" @click="openAddTeacher()">+ Добавить преподавателя</button>
+      </div>
+      <div class="card tbl-wrap" style="padding:0;">
+        <table class="tbl">
+          <thead><tr><th>Имя</th><th>Телефон</th><th>Предметы</th><th class="num">Уроков</th><th class="num">Учеников</th><th></th></tr></thead>
+          <tbody>
+            <template x-for="t in teachers" :key="t.id">
+              <tr>
+                <td x-text="t.name"></td>
+                <td x-text="t.phone"></td>
+                <td class="muted small" x-text="subjectsList(t.subjects) || '—'"></td>
+                <td class="num" x-text="teacherLessonCount(t.id)"></td>
+                <td class="num" x-text="teacherStudentCount(t.id)"></td>
+                <td class="actions">
+                  <button class="btn btn-sm" @click="openEditTeacher(t)">✎</button>
+                  <button class="btn btn-sm" @click="openAssignFor('teacher', t.id)">Назначить</button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="teachers.length===0"><td colspan="6" class="muted center" style="padding:18px;">Преподавателей нет.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══════════ Назначения ═══════════ -->
+    <section x-show="is('assignments')">
+      <div class="page-head">
+        <h1>Назначения преподавателей</h1>
+        <button class="btn btn-primary" @click="openAddAssignment()">+ Назначить</button>
+      </div>
+      <p class="muted small" style="margin-bottom: var(--s-3);">
+        Назначение связывает преподавателя с учеником по предмету. Уроки оно не создаёт —
+        используется как подсказка при создании урока.
+      </p>
+      <div class="card tbl-wrap" style="padding:0;">
+        <table class="tbl">
+          <thead><tr><th>Ученик</th><th>Класс</th><th>Предмет</th><th>Преподаватель</th><th>Дата</th><th></th></tr></thead>
+          <tbody>
+            <template x-for="a in assignments" :key="a.id">
+              <tr>
+                <td x-text="userName2(a.studentId)"></td>
+                <td x-text="userGrade(a.studentId) ?? '—'"></td>
+                <td x-text="subjectTitle(a.subjectId)"></td>
+                <td x-text="userName2(a.teacherId)"></td>
+                <td class="muted small" x-text="fmt.date(a.createdAt)"></td>
+                <td class="actions">
+                  <button class="btn btn-sm" @click="removeAssignment(a.id)">Удалить</button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="assignments.length===0"><td colspan="6" class="muted center" style="padding:18px;">Назначений ещё нет.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!--                    ОБУЧЕНИЕ                       -->
+    <!-- ════════════════════════════════════════════════ -->
+    <div x-show="view==='learning'">
+      <div class="page-head">
+        <h1>Обучение</h1>
+        <div class="row" style="gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-sm" @click="openAddLesson()">+ Урок</button>
+        </div>
+      </div>
+      <div class="tabs-row">
+        <div class="pill-radio">
+          <button class="pill" :class="{active:learningTab==='schedule'}" @click="learningTab='schedule'">Расписание</button>
+          <button class="pill" :class="{active:learningTab==='homework'}" @click="learningTab='homework'">Домашние задания</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ Расписание ═══════════ -->
+    <section x-show="is('schedule')">
+      <div class="page-head">
+        <h1>Расписание</h1>
+        <button class="btn btn-primary" @click="openAddLesson()">+ Создать урок</button>
+      </div>
+      <div class="toolbar">
+        <input class="input" placeholder="Поиск по предмету / преподавателю / ученику" x-model="lessonSearch">
+        <div class="pill-radio">
+          <button class="pill" :class="{active: lessonScope==='upcoming'}" @click="lessonScope='upcoming'">Будущие</button>
+          <button class="pill" :class="{active: lessonScope==='all'}"      @click="lessonScope='all'">Все</button>
+          <button class="pill" :class="{active: lessonScope==='past'}"     @click="lessonScope='past'">Прошедшие</button>
+        </div>
+      </div>
+      <div class="card tbl-wrap" style="padding:0;">
+        <table class="tbl">
+          <thead><tr><th>Дата</th><th>Время</th><th>Предмет</th><th>Тип</th><th>Преподаватель</th><th>Участники</th><th>Статус</th></tr></thead>
+          <tbody>
+            <template x-for="l in filteredLessons" :key="l.id">
+              <tr>
+                <td class="muted small" x-text="fmt.date(l.startAt)"></td>
+                <td x-text="fmt.time(l.startAt)"></td>
+                <td x-text="l._subjectTitle"></td>
+                <td><span class="badge" :class="l.type==='group'?'violet':''" x-text="l.type==='group'?'группа':'индив.'"></span></td>
+                <td x-text="l._teacherName"></td>
+                <td class="muted small" x-text="(l._participants||[]).map(p=>p._name).join(', ')"></td>
+                <td><span class="badge" :class="l._statusInfo.badge" x-text="l._statusInfo.label"></span></td>
+              </tr>
+            </template>
+            <tr x-show="filteredLessons.length===0"><td colspan="7" class="muted center" style="padding:18px;">Уроков нет.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!--                     ФИНАНСЫ                       -->
+    <!-- ════════════════════════════════════════════════ -->
+    <div x-show="view==='finance'">
+      <div class="page-head">
+        <h1>Финансы</h1>
+        <div class="row" style="gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-sm" @click="openAddPayment()">+ Оплата</button>
+          <button class="btn btn-sm" @click="openAddPackage()">+ Пакет</button>
+        </div>
+      </div>
+      <div class="tabs-row">
+        <div class="pill-radio">
+          <button class="pill" :class="{active:financeTab==='payments'}" @click="financeTab='payments'">Оплаты</button>
+          <button class="pill" :class="{active:financeTab==='debts'}"    @click="financeTab='debts'">
+            Задолженности
+            <span x-show="debtsCount>0" class="badge red" style="margin-left:6px;font-size:10px;padding:2px 6px;" x-text="debtsCount"></span>
+          </button>
+          <button class="pill" :class="{active:financeTab==='packages'}" @click="financeTab='packages'">Пакеты</button>
+          <button class="pill" :class="{active:financeTab==='charges'}"  @click="financeTab='charges'">Списания</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ Оплаты ═══════════ -->
+    <section x-show="is('payments')">
+      <div class="page-head">
+        <h1>Оплаты</h1>
+        <button class="btn btn-primary" @click="openAddPayment()">+ Добавить оплату</button>
+      </div>
+
+      <div class="kpi-grid" style="margin-bottom: var(--s-4);">
+        <div class="kpi ok"><div class="lbl">Оплачено всего</div><div class="val" x-text="fmt.money(finStats.totalPaid)"></div></div>
+        <div class="kpi"><div class="lbl">Оплачено за 30 дней</div><div class="val" x-text="fmt.money(finStats.paidRecent)"></div></div>
+        <div class="kpi warn"><div class="lbl">Ждём оплаты</div><div class="val" x-text="fmt.money(finStats.pendingAmount)"></div></div>
+        <div class="kpi" :class="finStats.overdueAmount>0?'danger':''"><div class="lbl">Просрочено</div><div class="val" x-text="fmt.money(finStats.overdueAmount)"></div></div>
+      </div>
+
+      <div class="toolbar">
+        <input class="input" placeholder="Поиск по родителю / ученику / телефону / предмету" x-model="paymentSearch">
+        <div class="pill-radio">
+          <button class="pill" :class="{active:paymentFilter==='all'}"      @click="paymentFilter='all'">Все</button>
+          <button class="pill" :class="{active:paymentFilter==='paid'}"     @click="paymentFilter='paid'">Оплачено</button>
+          <button class="pill" :class="{active:paymentFilter==='pending'}"  @click="paymentFilter='pending'">Ожидает</button>
+          <button class="pill" :class="{active:paymentFilter==='overdue'}"  @click="paymentFilter='overdue'">Просрочено</button>
+          <button class="pill" :class="{active:paymentFilter==='cancelled'}" @click="paymentFilter='cancelled'">Отменено</button>
+        </div>
+      </div>
+
+      <div class="card tbl-wrap" style="padding:0;">
+        <table class="tbl">
+          <thead><tr>
+            <th>Дата</th><th>Родитель</th><th>Ученик</th><th>Предмет</th>
+            <th class="num">Сумма</th><th>Способ</th><th>Срок</th><th>Статус</th><th></th>
+          </tr></thead>
+          <tbody>
+            <template x-for="p in filteredPayments" :key="p.id">
+              <tr>
+                <td class="muted small" x-text="fmt.date(p.createdAt)"></td>
+                <td x-text="userName2(p.parentId)"></td>
+                <td x-text="p._studentName || '—'"></td>
+                <td x-text="p._subjectTitle || '—'"></td>
+                <td class="num" x-text="fmt.money(p.amount)"></td>
+                <td x-text="p.method"></td>
+                <td class="muted small">
+                  <span x-text="p._dueDate || '—'"></span>
+                  <span x-show="p._isOverdue" class="badge red" style="margin-left:6px;font-size:10px;padding:2px 6px;" x-text="'+' + p._daysOverdue + ' дн.'"></span>
+                </td>
+                <td><span class="badge" :class="p._statusBadge" x-text="p._statusLabel"></span></td>
+                <td class="actions">
+                  <button class="btn btn-sm" @click="openEditPayment(p)">Изменить</button>
+                  <button class="btn btn-sm" x-show="p.status!=='paid'" @click="quickMarkPaid(p)">✓ Оплачено</button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="filteredPayments.length===0"><td colspan="9" class="muted center" style="padding:18px;">Платежей нет.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══════════ Задолженности ═══════════ -->
+    <section x-show="is('debts')">
+      <div class="page-head"><h1>Задолженности</h1></div>
+      <p class="muted small" style="margin-bottom: var(--s-3);">
+        Сводный список того, что ждёт оплаты и что списалось вне пакета.
+      </p>
+
+      <div class="kpi-grid" style="margin-bottom: var(--s-4);">
+        <div class="kpi warn"><div class="lbl">Ожидает оплаты</div><div class="val" x-text="finStats.pendingCount"></div></div>
+        <div class="kpi" :class="finStats.overdueCount>0?'danger':''"><div class="lbl">Просрочено</div><div class="val" x-text="finStats.overdueCount"></div></div>
+        <div class="kpi" :class="finStats.outOfPackageCount>0?'warn':''"><div class="lbl">Долг по занятиям</div><div class="val" x-text="finStats.outOfPackageCount"></div></div>
+        <div class="kpi"><div class="lbl">Сумма ожиданий</div><div class="val" x-text="fmt.money(finStats.pendingAmount)"></div></div>
+      </div>
+
+      <div class="card tbl-wrap" style="padding:0;">
+        <table class="tbl">
+          <thead><tr>
+            <th>Источник</th><th>Дата</th><th>Родитель</th><th>Ученик</th>
+            <th>Предмет</th><th class="num">Сумма</th><th>Срок</th><th></th>
+          </tr></thead>
+          <tbody>
+            <template x-for="d in debts" :key="d._key">
+              <tr>
+                <td>
+                  <span class="badge" :class="d.source==='payment_overdue'?'red':(d.source==='payment_pending'?'yellow':'violet')" x-text="d.sourceLabel"></span>
+                </td>
+                <td class="muted small" x-text="fmt.date(d.date)"></td>
+                <td x-text="d.parentName || '—'"></td>
+                <td x-text="d.studentName || '—'"></td>
+                <td x-text="d.subjectTitle || '—'"></td>
+                <td class="num" x-text="d.amount ? fmt.money(d.amount) : '—'"></td>
+                <td class="muted small">
+                  <span x-text="d.dueLabel || '—'"></span>
+                  <span x-show="d.daysOverdue>0" class="badge red" style="margin-left:6px;font-size:10px;padding:2px 6px;" x-text="'+' + d.daysOverdue + ' дн.'"></span>
+                </td>
+                <td class="actions">
+                  <button class="btn btn-sm" x-show="d.payment" @click="openEditPayment(d.payment)">Изменить</button>
+                  <button class="btn btn-sm" x-show="d.payment && d.payment.status!=='paid'" @click="quickMarkPaid(d.payment)">✓ Оплачено</button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="debts.length===0"><td colspan="8" class="muted center" style="padding:18px;">Задолженностей нет.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!--                    НАСТРОЙКИ                      -->
+    <!-- ════════════════════════════════════════════════ -->
+    <div x-show="view==='settings'">
+      <div class="page-head">
+        <h1>Настройки</h1>
+        <div class="row" style="gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-sm" @click="openAddService()">+ Услуга</button>
+        </div>
+      </div>
+      <div class="tabs-row">
+        <div class="pill-radio">
+          <button class="pill" :class="{active:settingsTab==='services'}" @click="settingsTab='services'">Тарифы и услуги</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ Тарифы и услуги ═══════════ -->
+    <section x-show="is('services')">
+      <div class="page-head">
+        <h1>Тарифы и услуги</h1>
+        <button class="btn btn-primary" @click="openAddService()">+ Добавить услугу</button>
+      </div>
+      <p class="muted small" style="margin-bottom: var(--s-3);">
+        Изменение цены или скидки применяется к <b>новым</b> покупкам пакета.
+        Уже купленные пакеты не пересчитываются — у них зафиксирована своя цена.
+        Чтобы убрать услугу из продажи, отключите её. История и старые пакеты останутся видимыми.
+      </p>
+      <div class="card tbl-wrap" style="padding:0;">
+        <table class="tbl">
+          <thead><tr>
+            <th>Название</th><th>Категория</th><th>Статус</th>
+            <th class="num">Индив.</th><th class="num">Группа</th>
+            <th>Пакеты / скидки</th><th></th>
+          </tr></thead>
+          <tbody>
+            <template x-for="s in services" :key="s.id">
+              <tr>
+                <td><b x-text="s.title"></b><div class="muted small" x-text="'id: ' + s.id"></div></td>
+                <td x-text="categoryLabel(s.category)"></td>
+                <td>
+                  <span class="badge" :class="s.active ? 'green' : ''" x-text="s.active ? 'Активна' : 'Отключена'"></span>
+                </td>
+                <td class="num" x-text="s.prices?.individual ? fmt.money(s.prices.individual) : '—'"></td>
+                <td class="num" x-text="s.prices?.group ? fmt.money(s.prices.group) : '—'"></td>
+                <td class="muted small">
+                  <template x-for="pk in (s.packages || [])" :key="pk.lessons">
+                    <span style="display:inline-block;margin-right:8px;">
+                      <b x-text="pk.lessons"></b><span x-text="' (-' + (pk.discount || 0) + '%)'"></span>
+                    </span>
+                  </template>
+                </td>
+                <td class="actions">
+                  <button class="btn btn-sm" @click="openEditService(s)">✎</button>
+                  <button class="btn btn-sm" @click="toggleService(s)" x-text="s.active ? 'Отключить' : 'Включить'"></button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="services.length===0"><td colspan="7" class="muted center" style="padding:18px;">Услуг нет.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══════════ Пакеты ═══════════ -->
+    <section x-show="is('packages')">
+      <div class="page-head">
+        <h1>Пакеты</h1>
+        <button class="btn btn-primary" @click="openAddPackage()">+ Добавить пакет</button>
+      </div>
+      <div class="toolbar">
+        <div class="pill-radio">
+          <button class="pill" :class="{active:packageFilter==='all'}"     @click="packageFilter='all'">Все</button>
+          <button class="pill" :class="{active:packageFilter==='active'}"  @click="packageFilter='active'">Активные</button>
+          <button class="pill" :class="{active:packageFilter==='low'}"     @click="packageFilter='low'">Остаток ≤ 2</button>
+          <button class="pill" :class="{active:packageFilter==='empty'}"   @click="packageFilter='empty'">Закончились</button>
+        </div>
+      </div>
+      <div class="card tbl-wrap" style="padding:0;">
+        <table class="tbl">
+          <thead><tr><th>Ученик</th><th>Предмет</th><th>Тип</th><th class="num">Использовано</th><th class="num">Всего</th><th class="num">Остаток</th><th>Прогресс</th></tr></thead>
+          <tbody>
+            <template x-for="p in filteredPackages" :key="p.id">
+              <tr>
+                <td x-text="p._studentName"></td>
+                <td x-text="p._subjectTitle"></td>
+                <td x-text="p.lessonType"></td>
+                <td class="num" x-text="p.used"></td>
+                <td class="num" x-text="p.total"></td>
+                <td class="num"><b :style="p.remaining===0?'color:var(--red)':(p.remaining<=2?'color:var(--yellow)':'color:var(--green-2)')" x-text="p.remaining"></b></td>
+                <td style="min-width:120px;">
+                  <div class="progress" :class="p._progressClass.replace('progress','').trim()">
+                    <div class="progress-fill" :style="'width:' + p._progressPct + '%'"></div>
+                  </div>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="filteredPackages.length===0"><td colspan="7" class="muted center" style="padding:18px;">Пакетов нет.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══════════ Списания ═══════════ -->
+    <section x-show="is('charges')">
+      <div class="page-head"><h1>История списаний (read-only)</h1></div>
+      <div class="card tbl-wrap" style="padding:0;">
+        <table class="tbl">
+          <thead><tr><th>Дата</th><th>Ученик</th><th>Предмет</th><th>Причина</th><th>Описание</th></tr></thead>
+          <tbody>
+            <template x-for="c in charges" :key="c.id">
+              <tr>
+                <td class="muted small" x-text="fmt.date(c.createdAt)"></td>
+                <td x-text="c._studentName"></td>
+                <td x-text="lessonSubjectOf(c.lessonId)"></td>
+                <td><span class="badge" :class="c.reason==='lesson_done'?'green':'yellow'" x-text="c.reason==='lesson_done'?'Проведён':'Пропуск'"></span></td>
+                <td class="muted small" x-text="c.reasonText"></td>
+              </tr>
+            </template>
+            <tr x-show="charges.length===0"><td colspan="5" class="muted center" style="padding:18px;">Списаний нет.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══════════ ДЗ ═══════════ -->
+    <section x-show="is('homework')">
+      <div class="page-head"><h1>Домашние задания</h1></div>
+      <div class="toolbar">
+        <input class="input" placeholder="Поиск по названию / ученику / преподавателю" x-model="hwSearch">
+        <div class="pill-radio">
+          <button class="pill" :class="{active: hwFilter==='all'}"        @click="hwFilter='all'">Все</button>
+          <button class="pill" :class="{active: hwFilter==='submitted'}"  @click="hwFilter='submitted'">На проверке</button>
+          <button class="pill" :class="{active: hwFilter==='checked'}"    @click="hwFilter='checked'">Проверено</button>
+          <button class="pill" :class="{active: hwFilter==='needs_revision'}" @click="hwFilter='needs_revision'">На доработке</button>
+        </div>
+      </div>
+      <div class="card tbl-wrap" style="padding:0;">
+        <table class="tbl">
+          <thead><tr><th>Название</th><th>Предмет</th><th>Ученик</th><th>Преподаватель</th><th>Дедлайн</th><th>Статус</th></tr></thead>
+          <tbody>
+            <template x-for="h in filteredHomeworks" :key="h.id">
+              <tr>
+                <td x-text="h.title"></td>
+                <td x-text="h._subjectTitle"></td>
+                <td x-text="h._studentName"></td>
+                <td x-text="h._teacherName"></td>
+                <td><span class="badge" :class="h._deadlineInfo.className" x-text="h._deadlineInfo.text"></span></td>
+                <td><span class="badge" :class="h._statusInfo.badge" x-text="h._statusInfo.label"></span></td>
+              </tr>
+            </template>
+            <tr x-show="filteredHomeworks.length===0"><td colspan="6" class="muted center" style="padding:18px;">ДЗ нет.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- (старая секция Статистика удалена; контент перенесён в #home) -->
+
+  </main>
+</div>
+
+<nav class="bottom-nav">
+  <div class="bottom-nav-i">
+    <a href="#home"     :class="{active: view==='home'}"     x-data><span class="icn">🏠</span><span>Дашборд</span></a>
+    <a href="#people"   :class="{active: view==='people'}"   x-data><span class="icn">👥</span><span>Люди</span></a>
+    <a href="#finance"  :class="{active: view==='finance'}"  x-data><span class="icn">💰</span><span>Финансы</span></a>
+    <a href="#learning" :class="{active: view==='learning'}" x-data><span class="icn">📚</span><span>Обучение</span></a>
+    <a href="#settings" :class="{active: view==='settings'}" x-data><span class="icn">⚙️</span><span>Настройки</span></a>
+  </div>
+</nav>
+
+<!-- ═══════════ Модалки ═══════════ -->
+
+<!-- Add / Edit Student -->
+<div class="modal-overlay" x-show="m.student.open" x-cloak @click.self="closeModalAll()">
+  <div class="modal" x-show="m.student.open" @click.stop>
+    <h3 x-text="m.student.editId ? 'Редактировать ученика' : 'Добавить ученика'"></h3>
+    <div class="stack" style="margin-top:var(--s-3);">
+      <div class="field"><label>Имя</label><input class="input" x-model="m.student.name"></div>
+      <div class="grid-2">
+        <div class="field"><label>Телефон</label><input class="input" x-model="m.student.phone" placeholder="+7..."></div>
+        <div class="field"><label>Класс</label><input class="input" type="number" min="1" max="11" x-model.number="m.student.grade"></div>
+      </div>
+      <div class="field">
+        <label>Родитель</label>
+        <select class="select" x-model="m.student.parentId">
+          <option value="">— без родителя —</option>
+          <template x-for="p in parents" :key="p.id">
+            <option :value="p.id" x-text="p.name + ' · ' + p.phone"></option>
+          </template>
+        </select>
+      </div>
+      <p x-show="m.student.error" class="inline-alert error" x-text="m.student.error"></p>
+      <p x-show="m.student.result" class="inline-alert info" x-text="m.student.result"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" @click="closeModalAll()">Закрыть</button>
+      <button class="btn btn-primary" @click="submitStudent()" x-text="m.student.editId ? 'Сохранить' : 'Добавить'"></button>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Edit Parent -->
+<div class="modal-overlay" x-show="m.parent.open" x-cloak @click.self="closeModalAll()">
+  <div class="modal" x-show="m.parent.open" @click.stop>
+    <h3 x-text="m.parent.editId ? 'Редактировать родителя' : 'Добавить родителя'"></h3>
+    <div class="stack" style="margin-top:var(--s-3);">
+      <div class="field"><label>Имя</label><input class="input" x-model="m.parent.name"></div>
+      <div class="field"><label>Телефон</label><input class="input" x-model="m.parent.phone" placeholder="+7..."></div>
+      <p x-show="m.parent.error" class="inline-alert error" x-text="m.parent.error"></p>
+      <p x-show="m.parent.result" class="inline-alert info" x-text="m.parent.result"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" @click="closeModalAll()">Закрыть</button>
+      <button class="btn btn-primary" @click="submitParent()" x-text="m.parent.editId ? 'Сохранить' : 'Добавить'"></button>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Edit Teacher -->
+<div class="modal-overlay" x-show="m.teacher.open" x-cloak @click.self="closeModalAll()">
+  <div class="modal" x-show="m.teacher.open" @click.stop>
+    <h3 x-text="m.teacher.editId ? 'Редактировать преподавателя' : 'Добавить преподавателя'"></h3>
+    <div class="stack" style="margin-top:var(--s-3);">
+      <div class="field"><label>Имя</label><input class="input" x-model="m.teacher.name"></div>
+      <div class="field"><label>Телефон</label><input class="input" x-model="m.teacher.phone" placeholder="+7..."></div>
+      <div class="field">
+        <label>Предметы</label>
+        <div class="stack-sm" style="padding:10px;border:1px solid var(--border);border-radius:var(--r-sm);">
+          <template x-for="s in subjects" :key="s.id">
+            <label class="row" style="gap:10px;cursor:pointer;">
+              <input type="checkbox" :value="s.id" x-model="m.teacher.subjects">
+              <span x-text="s.title"></span>
+            </label>
+          </template>
+        </div>
+      </div>
+      <p x-show="m.teacher.error" class="inline-alert error" x-text="m.teacher.error"></p>
+      <p x-show="m.teacher.result" class="inline-alert info" x-text="m.teacher.result"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" @click="closeModalAll()">Закрыть</button>
+      <button class="btn btn-primary" @click="submitTeacher()" x-text="m.teacher.editId ? 'Сохранить' : 'Добавить'"></button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Assignment -->
+<div class="modal-overlay" x-show="m.assignment.open" x-cloak @click.self="closeModalAll()">
+  <div class="modal" x-show="m.assignment.open" @click.stop>
+    <h3>Назначить преподавателя</h3>
+    <div class="stack" style="margin-top:var(--s-3);">
+      <div class="field">
+        <label>Ученик</label>
+        <select class="select" x-model="m.assignment.studentId">
+          <option value="">— выберите —</option>
+          <template x-for="s in students" :key="s.id">
+            <option :value="s.id" x-text="s.name + ' · ' + (s.grade ?? '?') + ' класс'"></option>
+          </template>
+        </select>
+      </div>
+      <div class="field">
+        <label>Предмет</label>
+        <select class="select" x-model="m.assignment.subjectId">
+          <option value="">— выберите —</option>
+          <template x-for="s in subjects" :key="s.id">
+            <option :value="s.id" x-text="s.title"></option>
+          </template>
+        </select>
+      </div>
+      <div class="field">
+        <label>Преподаватель</label>
+        <select class="select" x-model="m.assignment.teacherId">
+          <option value="">— выберите —</option>
+          <template x-for="t in teachersBySubject(m.assignment.subjectId)" :key="t.id">
+            <option :value="t.id" x-text="t.name"></option>
+          </template>
+        </select>
+      </div>
+      <p x-show="m.assignment.error" class="inline-alert error" x-text="m.assignment.error"></p>
+      <p x-show="m.assignment.result" class="inline-alert info" x-text="m.assignment.result"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" @click="closeModalAll()">Закрыть</button>
+      <button class="btn btn-primary" @click="submitAssignment()">Назначить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Lesson -->
+<div class="modal-overlay" x-show="m.lesson.open" x-cloak @click.self="closeModalAll()">
+  <div class="modal" x-show="m.lesson.open" @click.stop>
+    <h3>Создать урок</h3>
+    <div class="stack" style="margin-top:var(--s-3);">
+      <div class="field">
+        <label>Тип</label>
+        <div class="pill-radio">
+          <button class="pill" :class="{active: m.lesson.type==='individual'}" @click="m.lesson.type='individual'; m.lesson.studentIds=[]">Индивидуальный</button>
+          <button class="pill" :class="{active: m.lesson.type==='group'}"      @click="m.lesson.type='group'; m.lesson.studentIdSingle=''">Групповой</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Предмет</label>
+        <select class="select" x-model="m.lesson.subjectId" @change="lessonRecommend()">
+          <option value="">— выберите —</option>
+          <template x-for="s in subjects" :key="s.id">
+            <option :value="s.id" x-text="s.title"></option>
+          </template>
+        </select>
+      </div>
+      <div class="field" x-show="m.lesson.type==='individual'">
+        <label>Ученик</label>
+        <select class="select" x-model="m.lesson.studentIdSingle" @change="lessonRecommend()">
+          <option value="">— выберите —</option>
+          <template x-for="s in students" :key="s.id">
+            <option :value="s.id" x-text="s.name + ' · ' + (s.grade ?? '?') + ' класс'"></option>
+          </template>
+        </select>
+      </div>
+      <div class="field" x-show="m.lesson.type==='group'">
+        <label>Ученики (≥2)</label>
+        <div class="stack-sm" style="max-height:180px;overflow:auto;padding:8px;border:1px solid var(--border);border-radius:var(--r-sm);">
+          <template x-for="s in students" :key="s.id">
+            <label class="row" style="gap:10px;cursor:pointer;">
+              <input type="checkbox" :value="s.id" x-model="m.lesson.studentIds">
+              <span x-text="s.name + ' · ' + (s.grade ?? '?') + ' класс'"></span>
+            </label>
+          </template>
+        </div>
+      </div>
+      <div class="field">
+        <label>Преподаватель <span x-show="m.lesson.recommended" class="muted xsmall">(рекомендация: <span x-text="m.lesson.recommended"></span>)</span></label>
+        <select class="select" x-model="m.lesson.teacherId">
+          <option value="">— выберите —</option>
+          <template x-for="t in teachersBySubject(m.lesson.subjectId)" :key="t.id">
+            <option :value="t.id" x-text="t.name"></option>
+          </template>
+        </select>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Дата</label><input type="date" class="input" x-model="m.lesson.date"></div>
+        <div class="field"><label>Время</label><input type="time" class="input" x-model="m.lesson.time"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Длительность (мин)</label><input type="number" class="input" min="15" max="240" step="15" x-model.number="m.lesson.durationMin"></div>
+        <div class="field"><label>Тема (опц.)</label><input class="input" x-model="m.lesson.topic"></div>
+      </div>
+      <p x-show="m.lesson.error" class="inline-alert error" x-text="m.lesson.error"></p>
+      <p x-show="m.lesson.result" class="inline-alert info" x-text="m.lesson.result"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" @click="closeModalAll()">Закрыть</button>
+      <button class="btn btn-primary" @click="submitLesson()">Создать</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Package -->
+<div class="modal-overlay" x-show="m.pkg.open" x-cloak @click.self="closeModalAll()">
+  <div class="modal" x-show="m.pkg.open" @click.stop>
+    <h3>Добавить пакет</h3>
+    <div class="stack" style="margin-top:var(--s-3);">
+      <div class="field">
+        <label>Ученик</label>
+        <select class="select" x-model="m.pkg.studentId">
+          <option value="">— выберите —</option>
+          <template x-for="s in students" :key="s.id">
+            <option :value="s.id" x-text="s.name + ' · ' + (s.grade ?? '?') + ' класс'"></option>
+          </template>
+        </select>
+      </div>
+      <div class="field">
+        <label>Предмет</label>
+        <select class="select" x-model="m.pkg.subjectId">
+          <option value="">— выберите —</option>
+          <template x-for="s in subjects" :key="s.id">
+            <option :value="s.id" x-text="s.title"></option>
+          </template>
+        </select>
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Тип</label>
+          <select class="select" x-model="m.pkg.lessonType">
+            <option value="individual">индивидуально</option>
+            <option value="group">в группе</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Размер</label>
+          <select class="select" x-model.number="m.pkg.size">
+            <option :value="4">4 занятия</option>
+            <option :value="8">8 занятий</option>
+            <option :value="16">16 занятий</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Цена за занятие</label><input type="number" class="input" min="0" x-model.number="m.pkg.pricePerLesson"></div>
+        <div class="field"><label>Уже использовано</label><input type="number" class="input" min="0" x-model.number="m.pkg.used"></div>
+      </div>
+      <p x-show="m.pkg.error" class="inline-alert error" x-text="m.pkg.error"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" @click="closeModalAll()">Закрыть</button>
+      <button class="btn btn-primary" @click="submitPackage()">Добавить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Edit Payment -->
+<div class="modal-overlay" x-show="m.payment.open" x-cloak @click.self="closeModalAll()">
+  <div class="modal" x-show="m.payment.open" @click.stop>
+    <h3 x-text="m.payment.editId ? 'Редактировать оплату' : 'Добавить оплату'"></h3>
+    <div class="stack" style="margin-top:var(--s-3);">
+      <div class="field">
+        <label>Родитель</label>
+        <select class="select" x-model="m.payment.parentId" :disabled="!!m.payment.editId">
+          <option value="">— выберите —</option>
+          <template x-for="p in parents" :key="p.id">
+            <option :value="p.id" x-text="p.name + ' · ' + p.phone"></option>
+          </template>
+        </select>
+      </div>
+
+      <div class="grid-2">
+        <div class="field"><label>Сумма</label><input type="number" class="input" min="0" x-model.number="m.payment.amount"></div>
+        <div class="field">
+          <label>Статус</label>
+          <select class="select" x-model="m.payment.status">
+            <option value="paid">Оплачено</option>
+            <option value="pending">Ожидает оплаты</option>
+            <option value="cancelled">Отменено</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label>Способ</label>
+          <select class="select" x-model="m.payment.method">
+            <option value="card">card</option>
+            <option value="cash">cash</option>
+            <option value="transfer">transfer</option>
+            <option value="demo">demo</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Срок оплаты (для pending)</label>
+          <input type="date" class="input" x-model="m.payment.dueAt" :disabled="m.payment.status==='paid'">
+        </div>
+      </div>
+
+      <div class="field"><label>Комментарий</label><input class="input" x-model="m.payment.comment"></div>
+
+      <!-- Существующая привязка к пакету (только при создании) -->
+      <div class="field" x-show="!m.payment.editId">
+        <label>Пакет (если уже создан)</label>
+        <select class="select" x-model="m.payment.packageId">
+          <option value="">— без привязки —</option>
+          <template x-for="p in packages" :key="p.id">
+            <option :value="p.id" x-text="p._studentName + ' · ' + p._subjectTitle + ' · ' + p.total + ' зан.'"></option>
+          </template>
+        </select>
+      </div>
+
+      <!-- packageDraft (создаётся, когда status станет paid) -->
+      <div class="card" style="background: var(--bg-3); padding: var(--s-3);">
+        <label class="row" style="gap:10px;cursor:pointer;">
+          <input type="checkbox" x-model="m.payment.useDraft" :disabled="m.payment.editId && m.payment._draftLocked">
+          <b>Создать пакет автоматически при оплате</b>
+        </label>
+        <p class="muted xsmall" style="margin-top:6px;">
+          Если статус = paid — пакет создаётся сразу. Если pending — пакет появится только после
+          перевода статуса в paid. Повторное сохранение не создаёт пакет дважды.
+        </p>
+        <template x-if="m.payment.useDraft && !m.payment._draftLocked">
+          <div class="grid-2" style="margin-top:8px;">
+            <div class="field">
+              <label>Ученик</label>
+              <select class="select" x-model="m.payment.draftStudentId">
+                <option value="">— выберите —</option>
+                <template x-for="s in students" :key="s.id">
+                  <option :value="s.id" x-text="s.name + ' · ' + (s.grade ?? '?') + ' класс'"></option>
+                </template>
+              </select>
+            </div>
+            <div class="field">
+              <label>Предмет</label>
+              <select class="select" x-model="m.payment.draftSubjectId">
+                <option value="">— выберите —</option>
+                <template x-for="s in subjects" :key="s.id">
+                  <option :value="s.id" x-text="s.title"></option>
+                </template>
+              </select>
+            </div>
+            <div class="field">
+              <label>Тип</label>
+              <select class="select" x-model="m.payment.draftLessonType">
+                <option value="individual">индивидуально</option>
+                <option value="group">в группе</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Размер пакета</label>
+              <select class="select" x-model.number="m.payment.draftSize">
+                <option :value="4">4 занятия</option>
+                <option :value="8">8 занятий</option>
+                <option :value="16">16 занятий</option>
+              </select>
+            </div>
+          </div>
+        </template>
+        <p x-show="m.payment._draftLocked" class="muted xsmall" style="margin-top:6px;">
+          Пакет уже создан и привязан к платежу — повторная привязка невозможна.
+        </p>
+      </div>
+
+      <p x-show="m.payment.error" class="inline-alert error" x-text="m.payment.error"></p>
+      <p x-show="m.payment.result" class="inline-alert info" x-text="m.payment.result"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" @click="closeModalAll()">Закрыть</button>
+      <button class="btn btn-primary" @click="submitPayment()" x-text="m.payment.editId ? 'Сохранить' : 'Добавить'"></button>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Edit Service -->
+<div class="modal-overlay" x-show="m.service.open" x-cloak @click.self="closeModalAll()">
+  <div class="modal" x-show="m.service.open" @click.stop>
+    <h3 x-text="m.service.editId ? 'Редактировать услугу' : 'Добавить услугу'"></h3>
+    <div class="stack" style="margin-top:var(--s-3);">
+      <div class="grid-2">
+        <div class="field"><label>Название</label><input class="input" x-model="m.service.title"></div>
+        <div class="field"><label>ID (короткий ключ)</label><input class="input" x-model="m.service.id" :disabled="!!m.service.editId" placeholder="например: math"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Категория</label>
+          <select class="select" x-model="m.service.category">
+            <option value="school">Школа</option>
+            <option value="academy">IT-Академия</option>
+            <option value="exam">ОГЭ / ЕГЭ</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Статус</label>
+          <label class="row" style="gap:10px;cursor:pointer;padding:10px 0;">
+            <input type="checkbox" x-model="m.service.active">
+            <span x-text="m.service.active ? 'Активна — продаётся' : 'Отключена — скрыта из покупки'"></span>
+          </label>
+        </div>
+      </div>
+
+      <h4 style="margin-top:6px;">Цены за занятие</h4>
+      <div class="grid-2">
+        <div class="field"><label>Индивидуально, ₽</label><input type="number" class="input" min="0" x-model.number="m.service.priceInd"></div>
+        <div class="field"><label>В группе, ₽</label><input type="number" class="input" min="0" x-model.number="m.service.priceGrp"></div>
+      </div>
+      <p class="muted xsmall">Если цена = 0, этот тип занятий будет недоступен в мастере покупки.</p>
+
+      <h4 style="margin-top:6px;">Пакеты и скидки</h4>
+      <div class="grid-3">
+        <div class="field"><label>4 занятия — скидка %</label><input type="number" class="input" min="0" max="100" x-model.number="m.service.disc4"></div>
+        <div class="field"><label>8 занятий — скидка %</label><input type="number" class="input" min="0" max="100" x-model.number="m.service.disc8"></div>
+        <div class="field"><label>16 занятий — скидка %</label><input type="number" class="input" min="0" max="100" x-model.number="m.service.disc16"></div>
+      </div>
+
+      <p x-show="m.service.error"  class="inline-alert error" x-text="m.service.error"></p>
+      <p x-show="m.service.result" class="inline-alert info"  x-text="m.service.result"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" @click="closeModalAll()">Закрыть</button>
+      <button class="btn btn-primary" @click="submitService()" x-text="m.service.editId ? 'Сохранить' : 'Добавить'"></button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Lead -->
+<div class="modal-overlay" x-show="m.lead.open" x-cloak @click.self="closeModalAll()">
+  <div class="modal" x-show="m.lead.open" @click.stop>
+    <h3>Заявка</h3>
+    <div class="stack" style="margin-top:var(--s-3);">
+      <p class="muted small" x-show="m.lead.lead">
+        <b x-text="m.lead.lead?.name"></b> · <span x-text="m.lead.lead?.phone"></span>
+        · режим: <span x-text="m.lead.lead?.mode || '—'"></span>
+        · предмет: <span x-text="m.lead.lead?.subject || '—'"></span>
+      </p>
+      <div class="field">
+        <label>Статус</label>
+        <div class="pill-radio">
+          <button class="pill" :class="{active:m.lead.status==='new'}"         @click="m.lead.status='new'">Новая</button>
+          <button class="pill" :class="{active:m.lead.status==='in_progress'}" @click="m.lead.status='in_progress'">В работе</button>
+          <button class="pill" :class="{active:m.lead.status==='booked'}"      @click="m.lead.status='booked'">Записан</button>
+          <button class="pill" :class="{active:m.lead.status==='rejected'}"    @click="m.lead.status='rejected'">Отказ</button>
+        </div>
+      </div>
+      <p class="muted small">Из заявки можно создать карточки родителя и ученика. Связка идёт по телефону родителя.</p>
+      <div class="row" style="gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-sm" @click="leadCreateParent()" :disabled="m.lead.parentCreated">Создать родителя</button>
+        <button class="btn btn-sm" @click="leadCreateStudent()" :disabled="m.lead.studentCreated">Создать ученика</button>
+      </div>
+      <p x-show="m.lead.error"  class="inline-alert error" x-text="m.lead.error"></p>
+      <p x-show="m.lead.result" class="inline-alert info"  x-text="m.lead.result"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" @click="closeModalAll()">Закрыть</button>
+      <button class="btn btn-primary" @click="submitLead()">Сохранить статус</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/store.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/billing.js"></script>
+<script src="assets/js/homework.js"></script>
+<script src="assets/js/packages.js"></script>
+<script>
+// Новые 5 крупных разделов
+const ADMIN_VIEWS = ['home','people','finance','learning','settings'];
+
+// Старые hash → (раздел, опц. вкладка). Поддерживается ради совместимости
+// с прямыми ссылками и кодом, который ещё использует старые имена.
+const HASH_ALIAS = {
+  // people
+  students: ['people','students'], parents: ['people','parents'],
+  teachers: ['people','teachers'], assignments: ['people','assignments'],
+  leads: ['people','leads'],
+  // finance
+  payments: ['finance','payments'], debts: ['finance','debts'],
+  packages: ['finance','packages'], charges: ['finance','charges'],
+  // learning
+  schedule: ['learning','schedule'], homework: ['learning','homework'],
+  // settings
+  services: ['settings','services'],
+  // stats отдельно — переехал в дашборд
+  stats: ['home', null]
+};
+
+// Соответствие «логическая секция → (раздел, вкладка)» — для is(...)
+const SECTION_LOC = {
+  students:    ['people','students'],
+  parents:     ['people','parents'],
+  teachers:    ['people','teachers'],
+  assignments: ['people','assignments'],
+  leads:       ['people','leads'],
+  payments:    ['finance','payments'],
+  debts:       ['finance','debts'],
+  packages:    ['finance','packages'],
+  charges:     ['finance','charges'],
+  schedule:    ['learning','schedule'],
+  homework:    ['learning','homework'],
+  services:    ['settings','services']
+};
+
+function adminApp() {
+  return {
+    /* === state === */
+    view: 'home',
+    session: null,
+    userName: '',
+
+    // активные вкладки внутри новых разделов
+    peopleTab:   'students',
+    financeTab:  'payments',
+    learningTab: 'schedule',
+    settingsTab: 'services',
+
+    students: [], parents: [], teachers: [],
+    subjects: [],
+    services: [],
+    assignments: [],
+    lessons: [],          // hydrated
+    packages: [],         // hydrated
+    payments: [],         // hydrated
+    charges: [],          // hydrated
+    homeworks: [],        // hydrated
+    leads: [],
+
+    leadSearch: '', leadFilter: 'all',
+    studentSearch: '',
+    paymentSearch: '', paymentFilter: 'all',
+    packageFilter: 'all',
+    lessonSearch: '', lessonScope: 'upcoming',
+    hwSearch: '', hwFilter: 'all',
+
+    /* модалки */
+    m: {
+      student:    { open:false, editId:null, name:'', phone:'', grade:null, parentId:'', error:'', result:'' },
+      parent:     { open:false, editId:null, name:'', phone:'', error:'', result:'' },
+      teacher:    { open:false, editId:null, name:'', phone:'', subjects:[], error:'', result:'' },
+      assignment: { open:false, studentId:'', subjectId:'', teacherId:'', error:'', result:'' },
+      lesson:     { open:false, type:'individual', subjectId:'', studentIdSingle:'', studentIds:[], teacherId:'', date:'', time:'', durationMin:60, topic:'', recommended:'', error:'', result:'' },
+      pkg:        { open:false, studentId:'', subjectId:'', lessonType:'individual', size:8, pricePerLesson:2400, used:0, error:'' },
+      payment:    { open:false, editId:null, parentId:'', packageId:'',
+                    amount:0, method:'card', status:'paid',
+                    dueAt:'', comment:'',
+                    useDraft:false, _draftLocked:false,
+                    draftStudentId:'', draftSubjectId:'',
+                    draftLessonType:'individual', draftSize:8,
+                    error:'', result:'' },
+      lead:       { open:false, lead:null, status:'new', parentCreated:false, studentCreated:false, error:'', result:'' },
+      service:    { open:false, editId:null, id:'', title:'', category:'school', active:true,
+                    priceInd:2000, priceGrp:1100, disc4:0, disc8:6, disc16:12, error:'', result:'' }
+    },
+
+    get fmt() { return window.XApp.fmt; },
+
+    /* === lifecycle === */
+    init() {
+      const session = window.XApp.bootGuard('admin');
+      if (!session) return;
+      this.session = session;
+      this.reload();
+      window.XSchool.subscribe(() => this.reload());
+      window.XApp.watchHash(() => this._applyHash());
+    },
+
+    /** Хеш-роутер с поддержкой старых aliases. */
+    _applyHash() {
+      const raw = (location.hash || '').replace(/^#/, '').trim();
+      if (HASH_ALIAS[raw]) {
+        const [section, tab] = HASH_ALIAS[raw];
+        this.view = section;
+        if (tab) this[section + 'Tab'] = tab;
+        return;
+      }
+      this.view = ADMIN_VIEWS.includes(raw) ? raw : 'home';
+    },
+
+    /** Используется в шаблоне: `x-show="is('students')"` и т.п.
+     *  Возвращает true, если активный раздел и его вкладка совпадают. */
+    is(section) {
+      const loc = SECTION_LOC[section];
+      if (!loc) return false;
+      return this.view === loc[0] && this[loc[0] + 'Tab'] === loc[1];
+    },
+    reload() {
+      const Store = window.XSchool;
+      const App   = window.XApp;
+      const user  = Store.getUser(this.session.userId);
+      this.userName = user ? user.name : '';
+
+      this.subjects    = Store.state.subjects;
+      this.services    = Store.state.services || [];
+      this.assignments = Store.state.assignments || [];
+      this.leads       = (Store.state.leads || []).slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+
+      this.students = Store.state.users.filter(u => u.role === 'student');
+      this.parents  = Store.state.users.filter(u => u.role === 'parent');
+      this.teachers = Store.state.users.filter(u => u.role === 'teacher');
+
+      this.lessons = Store.state.lessons
+        .map(l => App.hydrateLesson(l, Store))
+        .sort((a,b) => new Date(a.startAt) - new Date(b.startAt));
+
+      this.packages = Store.state.packages
+        .map(p => App.hydratePackage(p, Store))
+        .map(p => ({ ...p, _studentName: this.userName2(p.studentId) }));
+
+      this.payments = Store.state.payments
+        .map(p => App.hydratePayment(p, Store))
+        .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      this.charges = Store.state.charges
+        .map(c => App.hydrateCharge(c, Store))
+        .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      this.homeworks = Store.state.homeworks
+        .map(h => App.hydrateHomework(h, Store))
+        .sort((a,b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+    },
+
+    /* === KPI === */
+    get kpi() {
+      const now = Date.now();
+      const dayStart = new Date(); dayStart.setHours(0,0,0,0);
+      const dayEnd   = new Date(); dayEnd.setHours(23,59,59,999);
+      const recentSince = now - 30*24*3600*1000;
+
+      const lessonsToday = this.lessons.filter(l => {
+        const t = new Date(l.startAt).getTime();
+        return t >= dayStart.getTime() && t <= dayEnd.getTime();
+      }).length;
+
+      const hwToReview = this.homeworks.filter(h => h.status === 'submitted').length;
+      const activePackages = this.packages.filter(p => p.remaining > 0).length;
+      const lowPackages = this.packages.filter(p => p.remaining > 0 && p.remaining <= 2).length;
+      const paymentsRecent = this.payments
+        .filter(p => p.status === 'paid' && new Date(p.createdAt).getTime() >= recentSince)
+        .reduce((s,p) => s + (p.amount || 0), 0);
+
+      return {
+        students: this.students.length,
+        parents: this.parents.length,
+        teachers: this.teachers.length,
+        activePackages, lowPackages,
+        lessonsToday, hwToReview, paymentsRecent
+      };
+    },
+
+    get newLeadsCount() { return this.leads.filter(l => l.status === 'new').length; },
+    get recentLeads()  { return this.leads.slice(0, 5); },
+    get upcomingLessons() {
+      const now = Date.now();
+      return this.lessons.filter(l => new Date(l.startAt).getTime() >= now).slice(0, 5);
+    },
+    get lowPackages() {
+      return this.packages.filter(p => p.remaining <= 2)
+        .sort((a,b) => a.remaining - b.remaining).slice(0, 6);
+    },
+    get emptyPackagesCount() { return this.packages.filter(p => p.remaining === 0).length; },
+
+    /* === Helpers === */
+    userName2(id) { const u = window.XSchool.getUser(id); return u ? u.name : ''; },
+    userGrade(id) { const u = window.XSchool.getUser(id); return u ? u.grade : null; },
+    subjectTitle(id) { const s = window.XSchool.getSubject(id); return s ? s.title : id; },
+    subjectsList(ids) { return (ids||[]).map(id => this.subjectTitle(id)).join(', '); },
+    parentName(student) {
+      if (!student?.parentPhone) return '';
+      const p = window.XSchool.state.users.find(u => u.role==='parent' && u.phone===student.parentPhone);
+      return p ? p.name : '';
+    },
+    childrenList(parentId) {
+      return window.XSchool.childrenOfParent(parentId).map(c => c.name).join(', ');
+    },
+    lessonCount(studentId) {
+      return this.lessons.filter(l =>
+        (l.participants||[]).some(p => p.studentId === studentId)).length;
+    },
+    packageCount(studentId) {
+      return this.packages.filter(p => p.studentId === studentId).length;
+    },
+    paymentCount(parentId) {
+      return this.payments.filter(p => p.parentId === parentId).length;
+    },
+    teacherLessonCount(teacherId) {
+      return this.lessons.filter(l => l.teacherId === teacherId).length;
+    },
+    teacherStudentCount(teacherId) {
+      const ids = new Set();
+      this.lessons.filter(l => l.teacherId === teacherId)
+        .forEach(l => (l.participants||[]).forEach(p => ids.add(p.studentId)));
+      return ids.size;
+    },
+    teachersBySubject(subjectId) {
+      if (!subjectId) return this.teachers;
+      return this.teachers.filter(t => !t.subjects?.length || t.subjects.includes(subjectId));
+    },
+    lessonSubjectOf(lessonId) {
+      const l = window.XSchool.getLesson(lessonId);
+      if (!l) return '';
+      const s = window.XSchool.getSubject(l.subjectId);
+      return s ? s.title : l.subjectId;
+    },
+
+    leadLabel(s)  { return s==='new'?'Новая':s==='in_progress'?'В работе':s==='booked'?'Записан':s==='rejected'?'Отказ':s; },
+    leadBadge(s)  { return s==='new'?'violet':s==='in_progress'?'blue':s==='booked'?'green':s==='rejected'?'red':''; },
+
+    /* === Filters === */
+    get filteredLeads() {
+      let list = this.leads;
+      if (this.leadFilter !== 'all') list = list.filter(l => l.status === this.leadFilter);
+      const q = this.leadSearch.trim().toLowerCase();
+      if (q) list = list.filter(l =>
+        (l.name||'').toLowerCase().includes(q) ||
+        (l.phone||'').toLowerCase().includes(q) ||
+        (l.subject||'').toLowerCase().includes(q));
+      return list;
+    },
+    get filteredStudents() {
+      const q = this.studentSearch.trim().toLowerCase();
+      if (!q) return this.students;
+      return this.students.filter(s =>
+        (s.name||'').toLowerCase().includes(q) ||
+        (s.phone||'').toLowerCase().includes(q) ||
+        String(s.grade ?? '').includes(q));
+    },
+    get filteredPayments() {
+      let list = this.payments;
+      if (this.paymentFilter === 'paid')      list = list.filter(p => p.status === 'paid');
+      else if (this.paymentFilter === 'pending')   list = list.filter(p => p.status === 'pending' && !p._isOverdue);
+      else if (this.paymentFilter === 'overdue')   list = list.filter(p => p._isOverdue);
+      else if (this.paymentFilter === 'cancelled') list = list.filter(p => p.status === 'cancelled');
+
+      const q = this.paymentSearch.trim().toLowerCase();
+      if (!q) return list;
+      const phoneOf = (id) => (window.XSchool.getUser(id) || {}).phone || '';
+      return list.filter(p =>
+        (this.userName2(p.parentId)||'').toLowerCase().includes(q) ||
+        phoneOf(p.parentId).toLowerCase().includes(q) ||
+        (p._studentName||'').toLowerCase().includes(q) ||
+        (p._subjectTitle||'').toLowerCase().includes(q));
+    },
+    get filteredPackages() {
+      let list = this.packages;
+      if (this.packageFilter === 'active') list = list.filter(p => p.remaining > 0);
+      else if (this.packageFilter === 'low')   list = list.filter(p => p.remaining > 0 && p.remaining <= 2);
+      else if (this.packageFilter === 'empty') list = list.filter(p => p.remaining === 0);
+      return list;
+    },
+    get filteredLessons() {
+      const now = Date.now();
+      let list = this.lessons;
+      if (this.lessonScope === 'upcoming') list = list.filter(l => new Date(l.startAt).getTime() >= now);
+      else if (this.lessonScope === 'past') list = list.filter(l => new Date(l.startAt).getTime() < now);
+      const q = this.lessonSearch.trim().toLowerCase();
+      if (q) list = list.filter(l =>
+        (l._subjectTitle||'').toLowerCase().includes(q) ||
+        (l._teacherName||'').toLowerCase().includes(q) ||
+        ((l._participants||[]).some(p => (p._name||'').toLowerCase().includes(q))));
+      return list;
+    },
+    get filteredHomeworks() {
+      let list = this.homeworks;
+      if (this.hwFilter !== 'all') list = list.filter(h => h.status === this.hwFilter);
+      const q = this.hwSearch.trim().toLowerCase();
+      if (q) list = list.filter(h =>
+        (h.title||'').toLowerCase().includes(q) ||
+        (h._studentName||'').toLowerCase().includes(q) ||
+        (h._teacherName||'').toLowerCase().includes(q) ||
+        (h._subjectTitle||'').toLowerCase().includes(q));
+      return list;
+    },
+
+    /* === Финансовые показатели === */
+    get finStats() {
+      const now = Date.now();
+      const recentSince = now - 30*86400000;
+      let totalPaid=0, paidRecent=0, pendingAmount=0, overdueAmount=0, paidCount=0;
+      let pendingCount=0, overdueCount=0;
+      for (const p of this.payments) {
+        const ts = new Date(p.createdAt).getTime();
+        if (p.status === 'paid')  { totalPaid += p.amount||0; paidCount++; if (ts >= recentSince) paidRecent += p.amount||0; }
+        else if (p.status === 'pending') {
+          pendingAmount += p.amount||0;
+          if (p._isOverdue) { overdueAmount += p.amount||0; overdueCount++; }
+          else pendingCount++;
+        }
+      }
+      const outOfPackageCount = this.charges.filter(c => c.outOfPackage).length;
+      const debtsCount = pendingCount + overdueCount + outOfPackageCount;
+      return {
+        totalPaid, paidRecent, pendingAmount, overdueAmount,
+        pendingCount, overdueCount, outOfPackageCount,
+        debtsCount,
+        avgCheck: paidCount ? Math.round(totalPaid / paidCount) : 0
+      };
+    },
+
+    /** Бейдж в sidebar «Задолженности». */
+    get debtsCount() { return this.finStats.debtsCount; },
+
+    /** Список задолженностей. */
+    get debts() {
+      const Store = window.XSchool;
+      const parentOf = (id) => {
+        const u = Store.getUser(id);
+        if (!u) return null;
+        return Store.state.users.find(p => p.role==='parent' && p.phone === u.parentPhone) || null;
+      };
+      const list = [];
+
+      // 1) pending (включая overdue) платежи
+      for (const p of this.payments) {
+        if (p.status !== 'pending') continue;
+        list.push({
+          _key: 'p:' + p.id,
+          source: p._isOverdue ? 'payment_overdue' : 'payment_pending',
+          sourceLabel: p._isOverdue ? 'Просрочено' : 'Ожидает',
+          date: p.createdAt,
+          parentName: this.userName2(p.parentId),
+          studentName: p._studentName,
+          subjectTitle: p._subjectTitle,
+          amount: p.amount,
+          dueLabel: p._dueDate,
+          daysOverdue: p._daysOverdue || 0,
+          payment: p
+        });
+      }
+
+      // 2) outOfPackage charges
+      for (const c of this.charges) {
+        if (!c.outOfPackage) continue;
+        const stuId = c.studentId;
+        const par = parentOf(stuId);
+        list.push({
+          _key: 'c:' + c.id,
+          source: 'out_of_package',
+          sourceLabel: 'Без пакета',
+          date: c.createdAt,
+          parentName: par ? par.name : '—',
+          studentName: this.userName2(stuId),
+          subjectTitle: this.lessonSubjectOf(c.lessonId),
+          amount: 0,
+          dueLabel: '',
+          daysOverdue: 0,
+          payment: null
+        });
+      }
+
+      list.sort((a,b) => new Date(b.date) - new Date(a.date));
+      return list;
+    },
+
+    /* === School stats === */
+    get schoolStats() {
+      let done=0, missed=0;
+      for (const l of this.lessons) {
+        for (const p of (l.participants || [])) {
+          if (p.status === 'done')   done++;
+          if (p.status === 'missed') missed++;
+        }
+      }
+      const total = done + missed;
+      const activeStudents = new Set();
+      const now = Date.now();
+      this.lessons.forEach(l => {
+        if (new Date(l.startAt).getTime() >= now && ['planned','tomorrow'].includes(l.status)) {
+          (l.participants||[]).forEach(p => activeStudents.add(p.studentId));
+        }
+      });
+      const totalPaid = this.payments.filter(p => p.status==='paid').reduce((s,p)=>s+(p.amount||0),0);
+      const hwChecked = this.homeworks.filter(h => h.status==='checked').length;
+      return {
+        lessonsDone: done, lessonsMissed: missed,
+        attendance: total ? Math.round(done * 100 / total) : 0,
+        activeStudents: activeStudents.size,
+        totalPaid, hwChecked
+      };
+    },
+
+    /* === Modals === */
+    closeModalAll() {
+      Object.keys(this.m).forEach(k => this.m[k].open = false);
+    },
+
+    openAddStudent() {
+      this.closeModalAll();
+      this.m.student = { open:true, editId:null, name:'', phone:'', grade:null, parentId:'', error:'', result:'' };
+    },
+    openEditStudent(s) {
+      this.closeModalAll();
+      const parent = this.parents.find(p => p.phone === s.parentPhone);
+      this.m.student = {
+        open:true, editId:s.id,
+        name:s.name||'', phone:s.phone||'', grade:s.grade||null,
+        parentId: parent ? parent.id : '',
+        error:'', result:''
+      };
+    },
+    submitStudent() {
+      const m = this.m.student; m.error=''; m.result='';
+      if (!m.name) { m.error='Укажите имя'; return; }
+      if (m.editId) {
+        const parent = m.parentId ? window.XSchool.getUser(m.parentId) : null;
+        window.XSchool.updateUser(m.editId, {
+          name: m.name, phone: m.phone || '',
+          grade: Number(m.grade) || null,
+          parentPhone: parent ? parent.phone : ''
+        });
+        m.result = 'Сохранено.';
+      } else {
+        const stu = window.XSchool.addStudent({
+          name: m.name, phone: m.phone, grade: m.grade, parentId: m.parentId
+        });
+        m.result = 'Ученик добавлен: ' + stu.name + '.';
+      }
+    },
+
+    openAddParent() {
+      this.closeModalAll();
+      this.m.parent = { open:true, editId:null, name:'', phone:'', error:'', result:'' };
+    },
+    openEditParent(p) {
+      this.closeModalAll();
+      this.m.parent = { open:true, editId:p.id, name:p.name, phone:p.phone, error:'', result:'' };
+    },
+    submitParent() {
+      const m = this.m.parent; m.error=''; m.result='';
+      if (!m.name)  { m.error='Укажите имя'; return; }
+      if (!m.phone) { m.error='Укажите телефон'; return; }
+      if (m.editId) {
+        window.XSchool.updateUser(m.editId, { name: m.name, phone: m.phone });
+        m.result = 'Сохранено.';
+      } else {
+        const p = window.XSchool.addParent({ name: m.name, phone: m.phone });
+        m.result = 'Родитель добавлен: ' + p.name + '.';
+      }
+    },
+
+    openAddTeacher() {
+      this.closeModalAll();
+      this.m.teacher = { open:true, editId:null, name:'', phone:'', subjects:[], error:'', result:'' };
+    },
+    openEditTeacher(t) {
+      this.closeModalAll();
+      this.m.teacher = { open:true, editId:t.id, name:t.name, phone:t.phone, subjects:(t.subjects||[]).slice(), error:'', result:'' };
+    },
+    submitTeacher() {
+      const m = this.m.teacher; m.error=''; m.result='';
+      if (!m.name)  { m.error='Укажите имя'; return; }
+      if (!m.phone) { m.error='Укажите телефон'; return; }
+      if (m.editId) {
+        window.XSchool.updateUser(m.editId, { name: m.name, phone: m.phone, subjects: m.subjects.slice() });
+        m.result = 'Сохранено.';
+      } else {
+        const t = window.XSchool.addTeacher({ name: m.name, phone: m.phone, subjects: m.subjects });
+        m.result = 'Преподаватель добавлен: ' + t.name + '.';
+      }
+    },
+
+    openAddAssignment() {
+      this.closeModalAll();
+      this.m.assignment = { open:true, studentId:'', subjectId:'', teacherId:'', error:'', result:'' };
+    },
+    openAssignFor(kind, id) {
+      this.closeModalAll();
+      this.m.assignment = { open:true, studentId:'', subjectId:'', teacherId:'', error:'', result:'' };
+      if (kind === 'student') this.m.assignment.studentId = id;
+      if (kind === 'teacher') this.m.assignment.teacherId = id;
+    },
+    submitAssignment() {
+      const m = this.m.assignment; m.error=''; m.result='';
+      if (!m.studentId) { m.error='Выберите ученика'; return; }
+      if (!m.subjectId) { m.error='Выберите предмет'; return; }
+      if (!m.teacherId) { m.error='Выберите преподавателя'; return; }
+      const r = window.XSchool.assignTeacherToStudent(m);
+      if (!r.ok) {
+        m.error = r.error === 'already_assigned' ? 'Такая связка уже существует.' : 'Ошибка: '+r.error;
+        return;
+      }
+      m.result = 'Назначено.';
+    },
+    removeAssignment(id) {
+      window.XSchool.removeAssignment(id);
+    },
+
+    openAddLesson() {
+      this.closeModalAll();
+      const today = new Date(Date.now() + 24*3600000).toISOString().slice(0,10);
+      this.m.lesson = {
+        open:true, type:'individual', subjectId:'', studentIdSingle:'', studentIds:[],
+        teacherId:'', date: today, time:'17:00', durationMin:60, topic:'', recommended:'',
+        error:'', result:''
+      };
+    },
+    lessonRecommend() {
+      const m = this.m.lesson;
+      if (m.type !== 'individual' || !m.studentIdSingle || !m.subjectId) {
+        m.recommended = ''; return;
+      }
+      const tid = window.XSchool.recommendTeacher(m.studentIdSingle, m.subjectId);
+      if (tid) {
+        m.recommended = (window.XSchool.getUser(tid) || {}).name || '';
+        if (!m.teacherId) m.teacherId = tid;
+      } else {
+        m.recommended = '';
+      }
+    },
+    submitLesson() {
+      const m = this.m.lesson; m.error=''; m.result='';
+      if (!m.subjectId)  { m.error='Выберите предмет'; return; }
+      if (!m.teacherId)  { m.error='Выберите преподавателя'; return; }
+      let participants = [];
+      if (m.type === 'individual') {
+        if (!m.studentIdSingle) { m.error='Выберите ученика'; return; }
+        participants = [{ studentId: m.studentIdSingle, status: 'planned' }];
+      } else {
+        if (!Array.isArray(m.studentIds) || m.studentIds.length < 2) { m.error='Выберите минимум 2 учеников'; return; }
+        participants = m.studentIds.map(id => ({ studentId: id, status: 'planned' }));
+      }
+      if (!m.date || !m.time) { m.error='Укажите дату и время'; return; }
+      const startAt = new Date(m.date + 'T' + m.time + ':00');
+      if (isNaN(startAt.getTime())) { m.error='Некорректные дата/время'; return; }
+      window.XSchool.addLesson({
+        subjectId: m.subjectId, teacherId: m.teacherId, type: m.type,
+        participants, startAt: startAt.toISOString(),
+        durationMin: Number(m.durationMin) || 60,
+        topic: m.topic || '', status: 'planned'
+      });
+      m.result = 'Урок создан.';
+    },
+
+    openAddPackage() {
+      this.closeModalAll();
+      this.m.pkg = { open:true, studentId:'', subjectId:'', lessonType:'individual', size:8, pricePerLesson:2400, used:0, error:'' };
+    },
+    submitPackage() {
+      const m = this.m.pkg; m.error='';
+      if (!m.studentId || !m.subjectId) { m.error='Заполните ученика и предмет'; return; }
+      window.XSchool.addPackage({
+        studentId: m.studentId, subjectId: m.subjectId,
+        lessonType: m.lessonType,
+        total: Number(m.size) || 0,
+        used: Number(m.used) || 0,
+        pricePerLesson: Number(m.pricePerLesson) || 0,
+        totalPaid: (Number(m.size) || 0) * (Number(m.pricePerLesson) || 0)
+      });
+      this.closeModalAll();
+    },
+
+    openAddPayment() {
+      this.closeModalAll();
+      this.m.payment = {
+        open:true, editId:null,
+        parentId:'', packageId:'',
+        amount:0, method:'card', status:'paid',
+        dueAt:'', comment:'',
+        useDraft:false, _draftLocked:false,
+        draftStudentId:'', draftSubjectId:'',
+        draftLessonType:'individual', draftSize:8,
+        error:'', result:''
+      };
+    },
+    openEditPayment(p) {
+      this.closeModalAll();
+      const dueAt = p.dueAt ? new Date(p.dueAt).toISOString().slice(0,10) : '';
+      this.m.payment = {
+        open:true, editId: p.id,
+        parentId: p.parentId, packageId: p.packageId || '',
+        amount: p.amount || 0, method: p.method || 'card',
+        status: p.status || 'paid',
+        dueAt,
+        comment: p.comment || '',
+        useDraft: !!p.packageDraft,
+        _draftLocked: !!p.packageId,
+        draftStudentId:  p.packageDraft?.studentId  || '',
+        draftSubjectId:  p.packageDraft?.subjectId  || '',
+        draftLessonType: p.packageDraft?.lessonType || 'individual',
+        draftSize:       p.packageDraft?.total      || 8,
+        error:'', result:''
+      };
+    },
+    submitPayment() {
+      const m = this.m.payment; m.error=''; m.result='';
+      if (!m.parentId) { m.error='Выберите родителя'; return; }
+      if (!m.amount || m.amount <= 0) { m.error='Сумма должна быть > 0'; return; }
+      if (m.status === 'pending' && !m.dueAt) { m.error='Укажите срок оплаты'; return; }
+
+      // packageDraft строим только если useDraft и пакет ещё не создан
+      let draft = null;
+      if (m.useDraft && !m._draftLocked) {
+        if (!m.draftStudentId || !m.draftSubjectId) {
+          m.error='Заполните ученика и предмет в черновике пакета'; return;
+        }
+        const size = Number(m.draftSize) || 0;
+        const pricePerLesson = window.XPackages
+          ? window.XPackages.priceFor(m.draftSubjectId, m.draftLessonType)
+          : 0;
+        draft = {
+          studentId: m.draftStudentId,
+          subjectId: m.draftSubjectId,
+          lessonType: m.draftLessonType,
+          total: size,
+          pricePerLesson,
+          totalPaid: m.amount
+        };
+      }
+
+      const dueIso = m.dueAt ? new Date(m.dueAt + 'T23:59:00').toISOString() : null;
+
+      if (m.editId) {
+        const patch = {
+          status: m.status,
+          amount: Number(m.amount),
+          method: m.method,
+          dueAt: m.status === 'pending' ? dueIso : null,
+          comment: m.comment || ''
+        };
+        // packageDraft — только если ещё не залочен
+        if (!m._draftLocked && m.useDraft && draft) patch.packageDraft = draft;
+        const upd = window.XSchool.updatePayment(m.editId, patch);
+        m.result = upd.packageId
+          ? 'Сохранено. Пакет создан.'
+          : 'Сохранено.';
+        m._draftLocked = !!upd.packageId;
+        return;
+      }
+
+      const created = window.XSchool.addPayment({
+        parentId: m.parentId,
+        packageId: m.packageId || null,
+        packageDraft: draft,
+        amount: Number(m.amount),
+        method: m.method || 'card',
+        status: m.status || 'paid',
+        dueAt: m.status === 'pending' ? dueIso : null,
+        comment: m.comment || ''
+      });
+      m.result = created.packageId
+        ? 'Платёж добавлен. Пакет создан.'
+        : 'Платёж добавлен.';
+      this.closeModalAll();
+    },
+
+    /** Быстрая отметка «Оплачено» для строки таблицы. */
+    quickMarkPaid(p) {
+      window.XSchool.updatePayment(p.id, { status: 'paid', dueAt: null });
+    },
+
+    openLeadModal(lead) {
+      this.closeModalAll();
+      this.m.lead = {
+        open:true, lead, status: lead.status || 'new',
+        parentCreated: !!this.parents.find(p => p.phone === lead.phone),
+        studentCreated: false,
+        error:'', result:''
+      };
+    },
+    submitLead() {
+      const m = this.m.lead;
+      if (!m.lead) return;
+      window.XSchool.updateLead(m.lead.id, { status: m.status });
+      m.result = 'Статус обновлён.';
+    },
+    leadCreateParent() {
+      const m = this.m.lead; m.error=''; m.result='';
+      if (!m.lead) return;
+      const exists = this.parents.find(p => p.phone === m.lead.phone);
+      if (exists) { m.parentCreated = true; m.result = 'Родитель уже есть в системе.'; return; }
+      window.XSchool.addParent({ name: m.lead.name, phone: m.lead.phone });
+      m.parentCreated = true;
+      m.result = 'Родитель создан.';
+    },
+    /* === Services === */
+    categoryLabel(c) {
+      return c==='school'?'Школа':c==='academy'?'IT-Академия':c==='exam'?'ОГЭ/ЕГЭ':c||'';
+    },
+    openAddService() {
+      this.closeModalAll();
+      this.m.service = {
+        open:true, editId:null,
+        id:'', title:'', category:'school', active:true,
+        priceInd:2000, priceGrp:1100,
+        disc4:0, disc8:6, disc16:12,
+        error:'', result:''
+      };
+    },
+    openEditService(s) {
+      this.closeModalAll();
+      const pkMap = {};
+      (s.packages || []).forEach(p => pkMap[p.lessons] = p.discount);
+      this.m.service = {
+        open:true, editId: s.id,
+        id: s.id, title: s.title || '',
+        category: s.category || 'school', active: !!s.active,
+        priceInd: (s.prices && s.prices.individual) || 0,
+        priceGrp: (s.prices && s.prices.group) || 0,
+        disc4:  pkMap[4]  ?? 0,
+        disc8:  pkMap[8]  ?? 6,
+        disc16: pkMap[16] ?? 12,
+        error:'', result:''
+      };
+    },
+    submitService() {
+      const m = this.m.service; m.error=''; m.result='';
+      const id = (m.id || '').toString().trim();
+      const title = (m.title || '').toString().trim();
+      if (!id)    { m.error = 'Укажите ID услуги.'; return; }
+      if (!title) { m.error = 'Укажите название.';  return; }
+      const packages = [
+        { lessons: 4,  discount: Number(m.disc4)  || 0 },
+        { lessons: 8,  discount: Number(m.disc8)  || 0 },
+        { lessons: 16, discount: Number(m.disc16) || 0 }
+      ];
+      const prices = {
+        individual: Number(m.priceInd) || 0,
+        group:      Number(m.priceGrp) || 0
+      };
+      if (m.editId) {
+        window.XSchool.updateService(m.editId, {
+          title, category: m.category, active: !!m.active, prices, packages
+        });
+        m.result = 'Сохранено. Изменения применятся к новым покупкам.';
+      } else {
+        const r = window.XSchool.addService({
+          id, title, category: m.category, active: !!m.active, prices, packages
+        });
+        if (!r.ok) {
+          m.error = r.error === 'service_exists'
+            ? 'Услуга с таким ID уже существует.'
+            : 'Ошибка: ' + r.error;
+          return;
+        }
+        m.result = 'Услуга добавлена.';
+      }
+    },
+    toggleService(s) {
+      window.XSchool.toggleServiceActive(s.id);
+    },
+
+    leadCreateStudent() {
+      const m = this.m.lead; m.error=''; m.result='';
+      if (!m.lead) return;
+      // Связываем ученика с родителем по тому же phone
+      const parent = this.parents.find(p => p.phone === m.lead.phone);
+      const stu = window.XSchool.addStudent({
+        name: m.lead.name + ' (ребёнок)',
+        phone: '',
+        grade: null,
+        parentId: parent ? parent.id : null
+      });
+      m.studentCreated = true;
+      m.result = 'Ученик создан: ' + stu.name + '. Уточните имя и класс в карточке ученика.';
+    },
+
+    logout() { window.XAuth.logout(); }
+  };
+}
+</script>
+</body>
+</html>
